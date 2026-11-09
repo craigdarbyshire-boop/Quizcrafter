@@ -67,14 +67,14 @@ export async function generateQuestions(
           category,
           count: need + Math.ceil(need / 4),
           difficulty: req.difficulty,
-          audience: req.audience ?? "family",
+          audience: req.audience ?? "mixed",
           types: req.types,
           avoid: [...kept.map((k) => k.question), ...pastHere],
         });
         const candidates = written
           .map((q) => tidyQuestion(q, req, category))
           .filter((q): q is GeneratedQuestion => q !== null);
-        const bad = new Set(await deps.writer.findProblems(candidates, req.audience ?? "family"));
+        const bad = new Set(await deps.writer.findProblems(candidates, req.audience ?? "mixed"));
         for (const [i, q] of candidates.entries()) {
           if (kept.length >= count) break;
           if (bad.has(i)) continue;

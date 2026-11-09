@@ -4,26 +4,26 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Logo } from "@/components/Logo";
 import { api, saveSeat, type Seat } from "@/lib/client";
-import { DEFAULT_SETTINGS, TEAMS, TIME_LIMITS, type Settings } from "@/lib/game/types";
-import type { QuestionType } from "@/lib/questions/types";
+import { DEFAULT_SETTINGS, TEAM_COLORS, TIME_LIMITS, type Settings } from "@/lib/game/types";
+import type { Audience, Difficulty, QuestionType } from "@/lib/questions/types";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="space-y-2">
-      <div className="text-sm font-semibold uppercase tracking-wider text-muted">{title}</div>
+    <div className="space-y-2.5">
+      <div className="eyebrow">{title}</div>
       {children}
     </div>
   );
 }
 
-function Chips<T extends string | number>({
+function Segmented<T extends string | number>({
   options,
   value,
   onChange,
   label,
 }: {
   options: readonly T[];
-  value: T | T[];
+  value: T | readonly T[];
   onChange: (v: T) => void;
   label?: (v: T) => string;
 }) {
@@ -36,8 +36,8 @@ function Chips<T extends string | number>({
           type="button"
           aria-pressed={selected(o)}
           onClick={() => onChange(o)}
-          className={`rounded-full border-2 px-4 py-2 text-lg font-semibold transition ${
-            selected(o) ? "border-yellow bg-yellow text-[#3a1d00]" : "border-white/25 bg-white/10 text-white"
+          className={`rounded-xl border px-4 py-2.5 font-semibold transition ${
+            selected(o) ? "border-gold bg-gold/15 text-gold" : "border-white/15 bg-black/30 text-ink"
           }`}
         >
           {label ? label(o) : String(o)}
@@ -49,12 +49,12 @@ function Chips<T extends string | number>({
 
 function Stepper({ value, min, max, onChange }: { value: number; min: number; max: number; onChange: (v: number) => void }) {
   return (
-    <div className="flex items-center gap-4">
-      <button type="button" aria-label="Less" className="btn btn-ghost h-12 w-12 !p-0 text-2xl" disabled={value <= min} onClick={() => onChange(value - 1)}>
+    <div className="flex items-center gap-3">
+      <button type="button" aria-label="Less" className="btn btn-ghost h-11 w-11 !p-0 text-xl" disabled={value <= min} onClick={() => onChange(value - 1)}>
         −
       </button>
-      <div className="w-12 text-center text-3xl font-bold">{value}</div>
-      <button type="button" aria-label="More" className="btn btn-ghost h-12 w-12 !p-0 text-2xl" disabled={value >= max} onClick={() => onChange(value + 1)}>
+      <div className="w-10 text-center text-3xl font-bold">{value}</div>
+      <button type="button" aria-label="More" className="btn btn-ghost h-11 w-11 !p-0 text-xl" disabled={value >= max} onClick={() => onChange(value + 1)}>
         +
       </button>
     </div>
@@ -62,10 +62,12 @@ function Stepper({ value, min, max, onChange }: { value: number; min: number; ma
 }
 
 const TYPE_LABELS: Record<QuestionType, string> = {
-  multiple_choice: "🔤 Multiple choice",
-  true_false: "✅ True / false",
-  typed: "⌨️ Type the answer",
+  multiple_choice: "Multiple choice",
+  true_false: "True or false",
+  typed: "Type the answer",
 };
+const AUDIENCE_LABELS: Record<Audience, string> = { teens: "Teens (14+)", mixed: "Teens & adults", adults: "Adults" };
+const DIFFICULTY_LABELS: Record<Difficulty, string> = { easy: "Easy", medium: "Medium", hard: "Hard" };
 
 export default function NewGame() {
   const router = useRouter();
@@ -92,16 +94,11 @@ export default function NewGame() {
   return (
     <form onSubmit={create} className="flex flex-col gap-6 pb-10">
       <Logo size="sm" />
-      <h1 className="text-center text-3xl font-bold">Set up your game 🎮</h1>
+      <h1 className="text-center text-2xl font-bold">Set up your game</h1>
 
-      <div className="card space-y-6 p-5">
+      <div className="panel space-y-7 p-5">
         <Section title="Your name">
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value.slice(0, 20))}
-            placeholder="Quizmaster"
-            className="w-full rounded-2xl border-2 border-white/25 bg-white/10 px-4 py-3 text-xl placeholder:text-white/30 focus:border-yellow focus:outline-none"
-          />
+          <input value={name} onChange={(e) => setName(e.target.value.slice(0, 20))} placeholder="Quizmaster" className="field" />
         </Section>
 
         <div className="grid grid-cols-2 gap-4">
@@ -112,42 +109,30 @@ export default function NewGame() {
             <Stepper value={s.questions} min={5} max={30} onChange={(v) => set("questions", v)} />
           </Section>
         </div>
-        <div className="flex flex-wrap gap-1 text-2xl" aria-label="Team mascots">
-          {TEAMS.slice(0, s.teams).map((t) => (
-            <span key={t.name} className="pop" title={t.name}>
-              {t.emoji}
-            </span>
+        <div className="-mt-3 flex gap-1.5" aria-hidden>
+          {TEAM_COLORS.slice(0, s.teams).map((c) => (
+            <span key={c} className="h-1.5 flex-1 rounded-full" style={{ background: c }} />
           ))}
         </div>
 
         <Section title="Who's playing?">
-          <Chips
-            options={["kids", "family", "adults"] as const}
-            value={s.audience}
-            onChange={(v) => set("audience", v)}
-            label={(v) => ({ kids: "🧒 Kids", family: "👨‍👩‍👧 Family", adults: "🧑 Adults" })[v]}
-          />
-        </Section>
-
-        <Section title="Time to answer">
-          <Chips options={TIME_LIMITS} value={s.timeLimit as (typeof TIME_LIMITS)[number]} onChange={(v) => set("timeLimit", v)} label={(v) => `${v}s`} />
+          <Segmented options={["teens", "mixed", "adults"] as const} value={s.audience} onChange={(v) => set("audience", v)} label={(v) => AUDIENCE_LABELS[v]} />
         </Section>
 
         <Section title="Difficulty">
-          <Chips
-            options={["easy", "medium", "hard"] as const}
-            value={s.difficulty}
-            onChange={(v) => set("difficulty", v)}
-            label={(v) => ({ easy: "😊 Easy", medium: "🤔 Medium", hard: "🔥 Hard" })[v]}
-          />
+          <Segmented options={["easy", "medium", "hard"] as const} value={s.difficulty} onChange={(v) => set("difficulty", v)} label={(v) => DIFFICULTY_LABELS[v]} />
         </Section>
 
-        <Section title="How to answer">
+        <Section title="Time to answer">
+          <Segmented options={TIME_LIMITS} value={s.timeLimit as (typeof TIME_LIMITS)[number]} onChange={(v) => set("timeLimit", v)} label={(v) => `${v}s`} />
+        </Section>
+
+        <Section title="Answer mode">
           <div className="grid gap-2">
             {(
               [
-                ["silent", "🤫 Silent answers", "Each team quietly locks in one answer."],
-                ["fastest", "⚡ Fastest first", "First right answer wins the points!"],
+                ["silent", "Silent answers", "Each team locks in one answer in secret."],
+                ["fastest", "Fastest finger", "First correct answer takes the points."],
               ] as const
             ).map(([mode, title, blurb]) => (
               <button
@@ -155,9 +140,9 @@ export default function NewGame() {
                 type="button"
                 aria-pressed={s.mode === mode}
                 onClick={() => set("mode", mode)}
-                className={`rounded-2xl border-2 px-4 py-3 text-left transition ${s.mode === mode ? "border-yellow bg-yellow/15" : "border-white/20 bg-white/5"}`}
+                className={`rounded-xl border px-4 py-3 text-left transition ${s.mode === mode ? "border-gold bg-gold/10" : "border-white/15 bg-black/30"}`}
               >
-                <div className="text-lg font-bold">{title}</div>
+                <div className={`font-bold ${s.mode === mode ? "text-gold" : ""}`}>{title}</div>
                 <div className="text-sm text-muted">{blurb}</div>
               </button>
             ))}
@@ -165,7 +150,7 @@ export default function NewGame() {
         </Section>
 
         <Section title="Question types">
-          <Chips
+          <Segmented
             options={["multiple_choice", "true_false", "typed"] as const}
             value={s.types}
             label={(v) => TYPE_LABELS[v]}
@@ -176,19 +161,19 @@ export default function NewGame() {
           />
         </Section>
 
-        <label className="flex cursor-pointer items-center justify-between gap-4 rounded-2xl border-2 border-white/20 bg-white/5 px-4 py-3">
+        <label className="flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-white/15 bg-black/30 px-4 py-3">
           <div>
-            <div className="text-lg font-bold">🏆 Leaderboard</div>
-            <div className="text-sm text-muted">Keep score across several rounds</div>
+            <div className="font-bold">Leaderboard</div>
+            <div className="text-sm text-muted">Track round wins over several rounds</div>
           </div>
-          <input type="checkbox" className="h-7 w-7 accent-yellow" checked={s.leaderboard} onChange={(e) => set("leaderboard", e.target.checked)} />
+          <input type="checkbox" className="h-6 w-6 accent-[#f5c542]" checked={s.leaderboard} onChange={(e) => set("leaderboard", e.target.checked)} />
         </label>
       </div>
 
-      <p className="text-center text-sm text-muted">Each team picks its own category in the waiting room.</p>
-      {error && <p className="wiggle rounded-2xl bg-coral/25 px-4 py-2 text-center">{error}</p>}
-      <button className="btn btn-primary text-xl" disabled={busy || !name.trim()}>
-        {busy ? "Creating…" : "Create game 🎉"}
+      <p className="text-center text-sm text-muted">Teams choose their own names and categories in the lobby.</p>
+      {error && <p className="shake rounded-xl border border-bad/50 bg-bad/15 px-4 py-2 text-center">{error}</p>}
+      <button className="btn btn-primary text-lg" disabled={busy || !name.trim()}>
+        {busy ? "Creating…" : "Create game"}
       </button>
     </form>
   );

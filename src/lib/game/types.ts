@@ -14,7 +14,7 @@ export const SettingsSchema = z.object({
   timeLimit: z.number().refine((t) => (TIME_LIMITS as readonly number[]).includes(t), "Pick a listed time limit"),
   difficulty: z.enum(DIFFICULTIES),
   // Older games saved before this option existed are treated as family games.
-  audience: z.enum(AUDIENCES).default("family"),
+  audience: z.enum(AUDIENCES).default("mixed"),
   types: z.array(z.enum(QUESTION_TYPES)).min(1),
   mode: z.enum(ANSWER_MODES),
   leaderboard: z.boolean(),
@@ -26,7 +26,7 @@ export const DEFAULT_SETTINGS: Settings = {
   questions: 10,
   timeLimit: 10,
   difficulty: "easy",
-  audience: "family",
+  audience: "mixed",
   types: ["multiple_choice", "true_false", "typed"],
   mode: "silent",
   leaderboard: false,
@@ -36,29 +36,26 @@ export const DEFAULT_CATEGORY = "General knowledge";
 export const CATEGORY_IDEAS = [
   "General knowledge",
   "Animals",
-  "Science",
   "Space",
   "Geography",
   "Sport",
   "Movies and TV",
+  "Pop culture",
+  "Science and nature",
+  "Literature",
   "Music",
   "History",
   "Food",
 ];
 
-/** Fun team identities. Index = team number. */
-export const TEAMS = [
-  { name: "Rockets", emoji: "🚀", color: "#ff5a5f" },
-  { name: "Unicorns", emoji: "🦄", color: "#b46cff" },
-  { name: "Dragons", emoji: "🐉", color: "#2ed47a" },
-  { name: "Sharks", emoji: "🦈", color: "#38b6ff" },
-  { name: "Tigers", emoji: "🐯", color: "#ff9f1c" },
-  { name: "Aliens", emoji: "👽", color: "#9be564" },
-  { name: "Ninjas", emoji: "🥷", color: "#5c6bff" },
-  { name: "Pandas", emoji: "🐼", color: "#f15bb5" },
-  { name: "Wizards", emoji: "🧙", color: "#00c2c7" },
-  { name: "Robots", emoji: "🤖", color: "#ffd60a" },
-] as const;
+/** Team colours, by team index. Teams pick their own names; until then they're "Team 1", "Team 2"… */
+export const TEAM_COLORS = ["#ff5a4f", "#3d8bff", "#2fd07f", "#f5b82e", "#a070ff", "#19c3d6", "#ff8a3d", "#ff4f9a", "#9fd843", "#c8d1e6"] as const;
+
+export function teamName(names: Record<number, string> | undefined, team: number): string {
+  return names?.[team] || `Team ${team + 1}`;
+}
+
+export const TEAM_NAME_MAX = 24;
 
 export type Phase = "lobby" | "generating" | "question" | "reveal" | "round_over" | "ended";
 
@@ -73,6 +70,8 @@ export interface Game {
   phaseStartedAt: number; // ms since epoch
   /** Category each team picked, by team index. */
   teamCategories: Record<number, string>;
+  /** Names teams chose for themselves, by team index. */
+  teamNames: Record<number, string>;
   error: string | null;
 }
 

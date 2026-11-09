@@ -3,9 +3,12 @@
 import QRCode from "qrcode";
 import { useEffect, useState } from "react";
 import type { GameView } from "@/lib/game/game";
-import { CATEGORY_IDEAS } from "@/lib/game/types";
+import { CATEGORY_IDEAS, TEAM_NAME_MAX } from "@/lib/game/types";
+import { TeamBadge } from "./Logo";
 
 type Act = (path: string, body?: unknown) => Promise<unknown>;
+
+const AUDIENCE_LABELS: Record<string, string> = { teens: "Teens (14+)", mixed: "Teens & adults", adults: "Adults", kids: "Teens (14+)", family: "Teens & adults" };
 
 function JoinCode({ code }: { code: string }) {
   const [qr, setQr] = useState("");
@@ -13,96 +16,119 @@ function JoinCode({ code }: { code: string }) {
   useEffect(() => {
     const url = `${window.location.origin}/join?code=${code}`;
     setLink(url);
-    QRCode.toDataURL(url, { margin: 1, width: 240, color: { dark: "#170b45", light: "#ffffff" } }).then(setQr);
+    QRCode.toDataURL(url, { margin: 1, width: 240, color: { dark: "#04071a", light: "#ffffff" } }).then(setQr);
   }, [code]);
   return (
-    <div className="card flex items-center gap-4 p-4">
+    <div className="panel flex items-center gap-4 p-4">
       {qr && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={qr} alt="QR code to join" className="h-28 w-28 rounded-2xl bg-white p-1" />
+        <img src={qr} alt="QR code to join" className="h-28 w-28 rounded-xl bg-white p-1" />
       )}
       <div className="min-w-0 flex-1">
-        <div className="text-sm text-muted">Join at this link or scan me</div>
-        <div className="text-5xl font-bold tracking-[0.2em] text-yellow">{code}</div>
+        <div className="eyebrow">Game code</div>
+        <div className="text-5xl font-extrabold tracking-[0.18em] text-gold">{code}</div>
         <button
-          className="mt-1 truncate text-left text-sm text-sky underline"
+          className="mt-1 text-sm font-semibold text-cyan"
           onClick={() => {
-            if (navigator.share) navigator.share({ title: "Join my Quizcrafter game!", url: link }).catch(() => {});
+            if (navigator.share) navigator.share({ title: "Join my Quizcrafter game", url: link }).catch(() => {});
             else navigator.clipboard?.writeText(link);
           }}
         >
-          Share link
+          Share invite link
         </button>
       </div>
     </div>
   );
 }
 
-function CategoryPicker({ current, onPick, onClose }: { current: string; onPick: (c: string) => void; onClose: () => void }) {
-  const [own, setOwn] = useState("");
+/** Bottom sheet used for both renaming a team and picking its category. */
+function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 z-30 flex items-end bg-black/50 p-4" onClick={onClose}>
-      <div className="card pop mx-auto w-full max-w-md space-y-4 !bg-[#1d0f55] p-5" onClick={(e) => e.stopPropagation()}>
-        <h2 className="text-2xl font-bold">Pick your category</h2>
-        <div className="flex flex-wrap gap-2">
-          {CATEGORY_IDEAS.map((c) => (
-            <button
-              key={c}
-              onClick={() => onPick(c)}
-              className={`rounded-full border-2 px-4 py-2 font-semibold ${c === current ? "border-yellow bg-yellow text-[#3a1d00]" : "border-white/25 bg-white/10"}`}
-            >
-              {c}
-            </button>
-          ))}
-        </div>
-        <form
-          className="flex gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (own.trim()) onPick(own.trim());
-          }}
-        >
-          <input
-            value={own}
-            onChange={(e) => setOwn(e.target.value.slice(0, 40))}
-            placeholder="Or type your own… (e.g. Dinosaurs)"
-            className="w-0 flex-1 rounded-full border-2 border-white/25 bg-white/10 px-4 py-2 placeholder:text-white/40 focus:border-yellow focus:outline-none"
-          />
-          <button className="btn btn-pink !px-4 !py-2" disabled={!own.trim()}>
-            Use
-          </button>
-        </form>
+    <div className="fixed inset-0 z-30 flex items-end bg-black/60 p-4" onClick={onClose}>
+      <div className="panel rise mx-auto w-full max-w-md space-y-4 !bg-[#0b1238] p-5" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-xl font-bold">{title}</h2>
+        {children}
       </div>
     </div>
   );
 }
 
+function NameSheet({ current, onSave, onClose }: { current: string; onSave: (n: string) => void; onClose: () => void }) {
+  const [name, setName] = useState(/^Team \d+$/.test(current) ? "" : current);
+  return (
+    <Sheet title="Name your team" onClose={onClose}>
+      <form
+        className="space-y-3"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (name.trim()) onSave(name.trim());
+        }}
+      >
+        <input autoFocus value={name} onChange={(e) => setName(e.target.value.slice(0, TEAM_NAME_MAX))} placeholder={current} className="field" />
+        <button className="btn btn-primary w-full" disabled={!name.trim()}>
+          Save name
+        </button>
+      </form>
+    </Sheet>
+  );
+}
+
+function CategorySheet({ current, onPick, onClose }: { current: string; onPick: (c: string) => void; onClose: () => void }) {
+  const [own, setOwn] = useState("");
+  return (
+    <Sheet title="Choose your category" onClose={onClose}>
+      <div className="flex flex-wrap gap-2">
+        {CATEGORY_IDEAS.map((c) => (
+          <button
+            key={c}
+            onClick={() => onPick(c)}
+            className={`rounded-xl border px-3.5 py-2 font-semibold ${c === current ? "border-gold bg-gold/15 text-gold" : "border-white/15 bg-black/30"}`}
+          >
+            {c}
+          </button>
+        ))}
+      </div>
+      <form
+        className="flex gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (own.trim()) onPick(own.trim());
+        }}
+      >
+        <input value={own} onChange={(e) => setOwn(e.target.value.slice(0, 40))} placeholder="Or type your own, e.g. Formula 1" className="field w-0 flex-1 !py-2.5 !text-base" />
+        <button className="btn btn-blue !px-4 !py-2.5" disabled={!own.trim()}>
+          Use
+        </button>
+      </form>
+    </Sheet>
+  );
+}
+
 export function TeamCards({ view, act, editable }: { view: GameView; act: Act; editable: boolean }) {
-  const [picking, setPicking] = useState<number | null>(null);
+  const [sheet, setSheet] = useState<{ kind: "name" | "category"; team: number } | null>(null);
   const { me } = view;
   return (
     <>
       <div className="grid gap-3">
         {view.teams.map((t) => {
           const mine = me.team === t.team;
-          const canPick = editable && (mine || me.isHost);
+          const canEdit = editable && (mine || me.isHost);
           return (
             <div
               key={t.team}
-              className="card overflow-hidden p-0 transition"
-              style={{ borderColor: mine ? t.color : undefined, boxShadow: mine ? `0 0 24px ${t.color}66` : undefined }}
+              className="panel overflow-hidden !p-0"
+              style={{ borderColor: mine ? t.color : undefined, boxShadow: mine ? `0 0 0 1px ${t.color}, 0 10px 30px ${t.color}22` : undefined }}
             >
-              <div className="flex items-center gap-3 px-4 py-3" style={{ background: `${t.color}33` }}>
-                <span className="text-3xl">{t.emoji}</span>
-                <div className="flex-1">
-                  <div className="text-xl font-bold">{t.name}</div>
-                  <button
-                    className={`text-sm ${canPick ? "text-yellow underline" : "text-muted"}`}
-                    disabled={!canPick}
-                    onClick={() => setPicking(t.team)}
-                  >
-                    📚 {t.category}
-                    {canPick ? " · change" : ""}
+              <div className="flex items-center gap-3 border-b border-white/10 px-4 py-3">
+                <TeamBadge name={t.name} color={t.color} size={34} />
+                <div className="min-w-0 flex-1">
+                  <button className="flex max-w-full items-center gap-1.5 text-left text-lg font-bold" disabled={!canEdit} onClick={() => setSheet({ kind: "name", team: t.team })}>
+                    <span className="truncate">{t.name}</span>
+                    {canEdit && <span className="text-sm text-gold">✎</span>}
+                  </button>
+                  <button className="text-sm text-muted" disabled={!canEdit} onClick={() => setSheet({ kind: "category", team: t.team })}>
+                    {t.category}
+                    {canEdit && <span className="text-gold"> · change</span>}
                   </button>
                 </div>
                 {editable && !mine && (
@@ -110,17 +136,17 @@ export function TeamCards({ view, act, editable }: { view: GameView; act: Act; e
                     Join
                   </button>
                 )}
-                {mine && <span className="rounded-full bg-white/20 px-3 py-1 text-sm font-semibold">You</span>}
+                {mine && <span className="rounded-md bg-white/10 px-2 py-1 text-xs font-semibold uppercase tracking-wider">Your team</span>}
               </div>
               <div className="flex min-h-12 flex-wrap gap-2 px-4 py-3">
-                {t.players.length === 0 && <span className="text-sm text-muted">Waiting for players…</span>}
+                {t.players.length === 0 && <span className="text-sm text-muted">No players yet</span>}
                 {t.players.map((p) => (
                   <button
                     key={p.id}
                     disabled={!editable || !me.isHost}
                     title={me.isHost ? "Tap to move to the next team" : undefined}
                     onClick={() => act("team", { playerId: p.id, team: (t.team + 1) % view.teams.length })}
-                    className="pop rounded-full bg-white/15 px-3 py-1 font-semibold"
+                    className="rise rounded-lg border border-white/10 bg-white/5 px-3 py-1 font-medium"
                   >
                     {p.name}
                     {p.id === me.id ? " (you)" : ""}
@@ -131,14 +157,24 @@ export function TeamCards({ view, act, editable }: { view: GameView; act: Act; e
           );
         })}
       </div>
-      {editable && me.isHost && <p className="text-center text-sm text-muted">Tip: tap a player to move them to another team.</p>}
-      {picking !== null && (
-        <CategoryPicker
-          current={view.teams[picking].category}
-          onClose={() => setPicking(null)}
+      {editable && <p className="text-center text-sm text-muted">Tap ✎ to rename your team. {me.isHost ? "Tap a player to move them." : ""}</p>}
+      {sheet?.kind === "name" && (
+        <NameSheet
+          current={view.teams[sheet.team].name}
+          onClose={() => setSheet(null)}
+          onSave={(name) => {
+            act("team-name", { team: sheet.team, name }).catch(() => {});
+            setSheet(null);
+          }}
+        />
+      )}
+      {sheet?.kind === "category" && (
+        <CategorySheet
+          current={view.teams[sheet.team].category}
+          onClose={() => setSheet(null)}
           onPick={(c) => {
-            act("category", { team: picking, category: c }).catch(() => {});
-            setPicking(null);
+            act("category", { team: sheet.team, category: c }).catch(() => {});
+            setSheet(null);
           }}
         />
       )}
@@ -155,26 +191,26 @@ export function Lobby({ view, act }: { view: GameView; act: Act }) {
       <JoinCode code={view.code} />
       <div className="flex flex-wrap justify-center gap-2 text-sm">
         {[
+          AUDIENCE_LABELS[s.audience ?? "mixed"],
           `${s.questions} questions`,
-          `${s.timeLimit}s each`,
-          { kids: "🧒 Kids", family: "👨‍👩‍👧 Family", adults: "🧑 Adults" }[s.audience ?? "family"],
-          { easy: "😊 Easy", medium: "🤔 Medium", hard: "🔥 Hard" }[s.difficulty],
-          s.mode === "fastest" ? "⚡ Fastest first" : "🤫 Silent answers",
-          s.leaderboard ? "🏆 Leaderboard" : null,
+          `${s.timeLimit}s per question`,
+          s.difficulty[0].toUpperCase() + s.difficulty.slice(1),
+          s.mode === "fastest" ? "Fastest finger" : "Silent answers",
+          s.leaderboard ? "Leaderboard on" : null,
         ]
           .filter(Boolean)
           .map((x) => (
-            <span key={x} className="rounded-full bg-white/10 px-3 py-1">
+            <span key={x} className="rounded-md border border-white/10 bg-black/30 px-2.5 py-1 text-muted">
               {x}
             </span>
           ))}
       </div>
-      {view.error && <p className="wiggle rounded-2xl bg-coral/25 px-4 py-3 text-center">{view.error}</p>}
+      {view.error && <p className="shake rounded-xl border border-bad/50 bg-bad/15 px-4 py-3 text-center">{view.error}</p>}
       <TeamCards view={view} act={act} editable />
-      <div className="fixed inset-x-0 bottom-0 z-20 mx-auto max-w-md bg-gradient-to-t from-[#2a0f6b] via-[#2a0f6b]/90 to-transparent px-4 pb-6 pt-10">
+      <div className="fixed inset-x-0 bottom-0 z-20 mx-auto max-w-md bg-gradient-to-t from-[#04071a] via-[#04071a]/90 to-transparent px-4 pb-6 pt-10">
         {view.me.isHost ? (
           <button
-            className="btn btn-primary w-full text-xl"
+            className="btn btn-primary w-full text-lg"
             disabled={starting || playerCount < 1}
             onClick={async () => {
               setStarting(true);
@@ -182,11 +218,11 @@ export function Lobby({ view, act }: { view: GameView; act: Act }) {
               setStarting(false);
             }}
           >
-            {starting ? "Starting…" : `Start the game! (${playerCount} playing)`}
+            {starting ? "Starting…" : `Start game · ${playerCount} player${playerCount === 1 ? "" : "s"}`}
           </button>
         ) : (
-          <div className="card p-4 text-center text-lg">
-            Waiting for <b>{view.hostName}</b> to start… <span className="bounce inline-block">⏳</span>
+          <div className="panel p-4 text-center">
+            <span className="pulse">Waiting for {view.hostName} to start…</span>
           </div>
         )}
       </div>

@@ -1,6 +1,6 @@
 import type { Answer, Game, GameQuestion, Player } from "./types";
 
-export type GamePatch = Partial<Pick<Game, "phase" | "round" | "qIndex" | "phaseStartedAt" | "teamCategories" | "error" | "settings">>;
+export type GamePatch = Partial<Pick<Game, "phase" | "round" | "qIndex" | "phaseStartedAt" | "teamCategories" | "teamNames" | "error" | "settings">>;
 
 /** Where games live. Supabase in production; memory for local play and tests. */
 export interface GameStore {

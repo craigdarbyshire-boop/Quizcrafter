@@ -2,17 +2,16 @@
 
 import { useMemo } from "react";
 
-const COLORS = ["#ff4fa3", "#ffd23f", "#3ce8b0", "#3ec7ff", "#9b6bff", "#ff6b4a"];
+const COLORS = ["#f5c542", "#ffffff", "#3fd2ff", "#2f7bff", "#ffe08a"];
 
-export function Confetti({ pieces = 60 }: { pieces?: number }) {
+export function Confetti({ pieces = 50 }: { pieces?: number }) {
   const bits = useMemo(
     () =>
       Array.from({ length: pieces }, (_, i) => ({
         left: Math.random() * 100,
-        delay: Math.random() * 0.6,
-        duration: 1.8 + Math.random() * 1.6,
+        delay: Math.random() * 0.5,
+        duration: 1.6 + Math.random() * 1.4,
         color: COLORS[i % COLORS.length],
-        rotate: Math.random() * 360,
       })),
     [pieces],
   );
@@ -22,13 +21,7 @@ export function Confetti({ pieces = 60 }: { pieces?: number }) {
         <span
           key={i}
           className="confetti"
-          style={{
-            left: `${b.left}%`,
-            background: b.color,
-            animationDelay: `${b.delay}s`,
-            animationDuration: `${b.duration}s`,
-            transform: `rotate(${b.rotate}deg)`,
-          }}
+          style={{ left: `${b.left}%`, background: b.color, animationDelay: `${b.delay}s`, animationDuration: `${b.duration}s` }}
         />
       ))}
     </div>

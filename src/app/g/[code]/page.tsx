@@ -72,7 +72,7 @@ export default function GamePage() {
   if (!view) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-4">
-        <div className="bounce text-6xl">🧠</div>
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-white/10 border-t-gold" />
         <p className="text-muted">{error || "Loading…"}</p>
       </div>
     );
@@ -83,7 +83,7 @@ export default function GamePage() {
   return (
     <>
       {error && (
-        <button onClick={() => setError("")} className="wiggle fixed inset-x-4 top-3 z-40 mx-auto max-w-md rounded-2xl bg-coral px-4 py-3 text-center font-semibold shadow-lg">
+        <button onClick={() => setError("")} className="shake fixed inset-x-4 top-3 z-40 mx-auto max-w-md rounded-xl bg-bad px-4 py-3 text-center font-semibold shadow-lg">
           {error}
         </button>
       )}
@@ -97,20 +97,21 @@ export default function GamePage() {
 }
 
 function Generating({ view }: { view: GameView }) {
-  const tips = ["Sharpening pencils…", "Asking the owls…", "Counting the stars…", "Checking every answer twice…", "Hiding the easy ones…"];
+  const steps = ["Writing questions…", "Checking every answer…", "Making sure nothing repeats…", "Setting the scores…"];
   const [i, setI] = useState(0);
   useEffect(() => {
-    const id = setInterval(() => setI((x) => (x + 1) % tips.length), 2200);
+    const id = setInterval(() => setI((x) => Math.min(x + 1, steps.length - 1)), 6000);
     return () => clearInterval(id);
-  }, [tips.length]);
+  }, [steps.length]);
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-6 text-center">
-      <div className="bounce text-7xl">🤖</div>
-      <h1 className="text-3xl font-bold">Writing round {view.round}!</h1>
-      <p className="pop text-xl text-muted" key={i}>
-        {tips[i]}
+    <div className="flex flex-1 flex-col items-center justify-center gap-5 text-center">
+      <div className="h-14 w-14 animate-spin rounded-full border-4 border-white/10 border-t-gold" />
+      <div className="eyebrow !text-gold">Round {view.round}</div>
+      <h1 className="text-2xl font-bold">Get ready</h1>
+      <p className="rise text-muted" key={i}>
+        {steps[i]}
       </p>
-      <p className="text-sm text-muted">This takes about half a minute.</p>
+      <p className="text-xs text-muted/70">This usually takes under a minute.</p>
     </div>
   );
 }

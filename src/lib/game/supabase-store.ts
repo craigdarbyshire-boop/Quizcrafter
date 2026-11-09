@@ -14,6 +14,7 @@ const toGame = (r: any): Game => ({
   qIndex: r.q_index,
   phaseStartedAt: new Date(r.phase_started_at).getTime(),
   teamCategories: r.team_categories ?? {},
+  teamNames: r.team_names ?? {},
   error: r.error,
 });
 
@@ -58,6 +59,7 @@ export class SupabaseGameStore implements GameStore {
       q_index: game.qIndex,
       phase_started_at: new Date(game.phaseStartedAt).toISOString(),
       team_categories: game.teamCategories,
+      team_names: game.teamNames,
       error: game.error,
     });
     check(error, "Couldn't create the game");
@@ -82,6 +84,7 @@ export class SupabaseGameStore implements GameStore {
     if (patch.qIndex !== undefined) row.q_index = patch.qIndex;
     if (patch.phaseStartedAt !== undefined) row.phase_started_at = new Date(patch.phaseStartedAt).toISOString();
     if (patch.teamCategories !== undefined) row.team_categories = patch.teamCategories;
+    if (patch.teamNames !== undefined) row.team_names = patch.teamNames;
     if (patch.error !== undefined) row.error = patch.error;
     if (patch.settings !== undefined) row.settings = patch.settings;
     let q = this.db.from("games").update(row).eq("id", id);
