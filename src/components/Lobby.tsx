@@ -157,6 +157,7 @@ export function Lobby({ view, act }: { view: GameView; act: Act }) {
         {[
           `${s.questions} questions`,
           `${s.timeLimit}s each`,
+          { kids: "🧒 Kids", family: "👨‍👩‍👧 Family", adults: "🧑 Adults" }[s.audience ?? "family"],
           { easy: "😊 Easy", medium: "🤔 Medium", hard: "🔥 Hard" }[s.difficulty],
           s.mode === "fastest" ? "⚡ Fastest first" : "🤫 Silent answers",
           s.leaderboard ? "🏆 Leaderboard" : null,

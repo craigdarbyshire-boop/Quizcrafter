@@ -3,6 +3,9 @@ import { z } from "zod";
 export const DIFFICULTIES = ["easy", "medium", "hard"] as const;
 export type Difficulty = (typeof DIFFICULTIES)[number];
 
+export const AUDIENCES = ["kids", "family", "adults"] as const;
+export type Audience = (typeof AUDIENCES)[number];
+
 export const QUESTION_TYPES = ["multiple_choice", "true_false", "typed"] as const;
 export type QuestionType = (typeof QUESTION_TYPES)[number];
 
@@ -49,6 +52,8 @@ export interface CategoryRequest {
 export interface GenerateRequest {
   categories: CategoryRequest[];
   difficulty: Difficulty;
+  /** Who's playing, so questions suit their age. Defaults to family. */
+  audience?: Audience;
   /** Which question types are allowed in this game. */
   types: QuestionType[];
 }
@@ -64,5 +69,6 @@ export const GenerateRequestSchema = z.object({
     .min(1)
     .max(10),
   difficulty: z.enum(DIFFICULTIES),
+  audience: z.enum(AUDIENCES).optional(),
   types: z.array(z.enum(QUESTION_TYPES)).min(1),
 });

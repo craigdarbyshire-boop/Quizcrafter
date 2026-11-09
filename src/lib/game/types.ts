@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DIFFICULTIES, QUESTION_TYPES, type Question } from "../questions/types";
+import { AUDIENCES, DIFFICULTIES, QUESTION_TYPES, type Question } from "../questions/types";
 
 export const TIME_LIMITS = [5, 10, 15, 20, 30, 60] as const;
 export const ANSWER_MODES = ["fastest", "silent"] as const;
@@ -13,6 +13,8 @@ export const SettingsSchema = z.object({
   questions: z.number().int().min(5).max(30),
   timeLimit: z.number().refine((t) => (TIME_LIMITS as readonly number[]).includes(t), "Pick a listed time limit"),
   difficulty: z.enum(DIFFICULTIES),
+  // Older games saved before this option existed are treated as family games.
+  audience: z.enum(AUDIENCES).default("family"),
   types: z.array(z.enum(QUESTION_TYPES)).min(1),
   mode: z.enum(ANSWER_MODES),
   leaderboard: z.boolean(),
@@ -24,6 +26,7 @@ export const DEFAULT_SETTINGS: Settings = {
   questions: 10,
   timeLimit: 10,
   difficulty: "easy",
+  audience: "family",
   types: ["multiple_choice", "true_false", "typed"],
   mode: "silent",
   leaderboard: false,

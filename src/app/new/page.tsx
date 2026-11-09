@@ -120,6 +120,15 @@ export default function NewGame() {
           ))}
         </div>
 
+        <Section title="Who's playing?">
+          <Chips
+            options={["kids", "family", "adults"] as const}
+            value={s.audience}
+            onChange={(v) => set("audience", v)}
+            label={(v) => ({ kids: "🧒 Kids", family: "👨‍👩‍👧 Family", adults: "🧑 Adults" })[v]}
+          />
+        </Section>
+
         <Section title="Time to answer">
           <Chips options={TIME_LIMITS} value={s.timeLimit as (typeof TIME_LIMITS)[number]} onChange={(v) => set("timeLimit", v)} label={(v) => `${v}s`} />
         </Section>

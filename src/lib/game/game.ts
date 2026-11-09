@@ -145,7 +145,7 @@ export async function startRound(deps: GameDeps, codeIn: string, token: string) 
 
   try {
     const { categories, order } = planRound(game.settings, game.teamCategories);
-    const written = await deps.writeQuestions({ categories, difficulty: game.settings.difficulty, types: game.settings.types });
+    const written = await deps.writeQuestions({ categories, difficulty: game.settings.difficulty, audience: game.settings.audience ?? "family", types: game.settings.types });
     const queues = new Map<string, Question[]>();
     for (const q of written) {
       const key = categoryKey(q.category);
