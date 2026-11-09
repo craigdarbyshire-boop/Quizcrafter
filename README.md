@@ -1,36 +1,41 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Quizcrafter
 
-## Getting Started
+A team quiz game the whole family plays on their phones. One person starts a game, everyone joins with a code, and AI writes fresh questions that never repeat.
 
-First, run the development server:
+The game spec lives in the project's "Quizcrafter game spec" doc.
+
+## What's built so far
+
+**Question engine** (`src/lib/questions/`)
+
+- `POST /api/questions` writes a game's questions. Body:
+  ```json
+  {
+    "categories": [{ "category": "Animals", "count": 5 }, { "category": "Space", "count": 5 }],
+    "difficulty": "easy",
+    "types": ["multiple_choice", "true_false", "typed"]
+  }
+  ```
+  Each team's chosen category is one entry in `categories`.
+- `DELETE /api/questions/history` is the "reset question history" button.
+
+How it works:
+
+1. It loads every past question in the chosen categories from Supabase (`question_history`).
+2. Claude writes the questions and is told what's already been asked. Points scale with difficulty (easy 5–15, medium 10–25, hard 20–40).
+3. A second Claude pass checks each question has exactly one right answer and is suitable for kids. Any that fail are dropped.
+4. Each question is compared with history and with the rest of the game. Reworded repeats are caught too, and dropped.
+5. Replacements are requested for anything dropped, and the final set is saved to history.
+
+Typed answers forgive capital letters, punctuation, a leading "the" and small spelling slips, but numbers must be exact.
+
+## Running it
 
 ```bash
+cp .env.example .env.local   # then fill in the keys
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm test
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The database table is in `supabase/migrations/` and has already been applied to the `quizcrafter` Supabase project.
