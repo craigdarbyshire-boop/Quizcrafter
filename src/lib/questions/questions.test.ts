@@ -119,11 +119,11 @@ describe("generateQuestions", () => {
     expect(await history.list(["animals"])).toHaveLength(4);
   });
 
-  it("tells the AI who's playing, defaulting to family", async () => {
+  it("tells the AI who's playing, defaulting to mixed", async () => {
     const pool = () => [mc("Q one about owls?", "A"), mc("Q two about frogs?", "B")];
     const w1 = new FakeWriter(pool());
     await generateQuestions(baseReq, { writer: w1, history: new MemoryHistoryStore() });
-    expect(w1.requests[0].audience).toBe("family");
+    expect(w1.requests[0].audience).toBe("mixed");
     const w2 = new FakeWriter(pool());
     await generateQuestions({ ...baseReq, audience: "adults" }, { writer: w2, history: new MemoryHistoryStore() });
     expect(w2.requests[0].audience).toBe("adults");

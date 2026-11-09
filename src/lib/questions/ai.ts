@@ -39,11 +39,12 @@ const TYPE_RULES: Record<QuestionType, string> = {
 };
 
 const PLAYERS: Record<Audience, string> = {
-  kids: "The players are children, roughly 6 to 12 years old. Use simple words and topics children know from school, books, games and cartoons, scaled to the chosen difficulty.",
-  family:
-    "The players are a family: children and adults playing together. Mix questions so both kids and grown-ups have a fair chance, and avoid topics only adults would know.",
+  teens:
+    "The players are teenagers aged 14 and up. Pitch questions at secondary-school level and above, drawing on school subjects, sport, music, film, games, the internet and the wider world. Never write childish or babyish questions; treat them as sharp, capable players.",
+  mixed:
+    "The players are teenagers (14 and up) and adults playing together. Write proper pub-quiz style questions that both a sharp 14-year-old and an adult have a fair chance at. Never write childish questions.",
   adults:
-    "The players are adults. Use grown-up general knowledge, culture and history, scaled to the chosen difficulty. Keep it friendly and clean, as children may be in the room.",
+    "The players are adults. Write proper pub-quiz style questions on general knowledge, culture, history, science and current-ish affairs (nothing that changes quickly), scaled to the chosen difficulty.",
 };
 
 function systemPrompt(audience: Audience): string {
@@ -51,10 +52,10 @@ function systemPrompt(audience: Audience): string {
 
 ${PLAYERS[audience]}
 
-Write questions that are fun, clear and have exactly one right answer that is not open to debate. Keep everything family-friendly: nothing rude, scary or upsetting. Avoid questions whose answer changes over time (current records, "latest" anything, living people's ages).`;
+Write questions that are fun, clear and have exactly one right answer that is not open to debate. Keep the tone like a good TV quiz show: smart and clean, nothing crude or graphic. Teenagers may be playing. Avoid questions whose answer changes over time (current records, "latest" anything, living people's ages).`;
 }
 
-const AUDIENCE_NOUN: Record<Audience, string> = { kids: "children", family: "a family with children", adults: "adults" };
+const AUDIENCE_NOUN: Record<Audience, string> = { teens: "teenagers aged 14 and up", mixed: "teenagers and adults", adults: "adults" };
 
 function writePrompt(req: WriteRequest): string {
   const range = POINTS_RANGE[req.difficulty];

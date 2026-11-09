@@ -3,8 +3,15 @@ import { z } from "zod";
 export const DIFFICULTIES = ["easy", "medium", "hard"] as const;
 export type Difficulty = (typeof DIFFICULTIES)[number];
 
-export const AUDIENCES = ["kids", "family", "adults"] as const;
+export const AUDIENCES = ["teens", "mixed", "adults"] as const;
 export type Audience = (typeof AUDIENCES)[number];
+
+/** Games saved before the audience options were renamed still load. */
+export function normalizeAudience(a: unknown): Audience {
+  if (a === "kids" || a === "teens") return "teens";
+  if (a === "adults") return "adults";
+  return "mixed";
+}
 
 export const QUESTION_TYPES = ["multiple_choice", "true_false", "typed"] as const;
 export type QuestionType = (typeof QUESTION_TYPES)[number];
@@ -52,7 +59,7 @@ export interface CategoryRequest {
 export interface GenerateRequest {
   categories: CategoryRequest[];
   difficulty: Difficulty;
-  /** Who's playing, so questions suit their age. Defaults to family. */
+  /** Who's playing, so questions suit their age. Defaults to mixed. */
   audience?: Audience;
   /** Which question types are allowed in this game. */
   types: QuestionType[];

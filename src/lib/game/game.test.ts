@@ -9,6 +9,7 @@ import {
   nextQuestion,
   planRound,
   setCategory,
+  setTeamName,
   setTeam,
   startRound,
   submitAnswer,
@@ -63,6 +64,19 @@ describe("joining", () => {
   it("rejects unknown codes", async () => {
     const s = setup();
     await expect(joinGame(s.deps, "ZZZZ", { name: "x" })).rejects.toThrow(/No game/);
+  });
+});
+
+describe("team names", () => {
+  it("defaults to Team 1, Team 2 and lets each team name itself", async () => {
+    const s = await lobby();
+    let view = await getView(s.deps, s.code, s.kid.token);
+    expect(view.teams.map((t) => t.name)).toEqual(["Team 1", "Team 2"]);
+    await setTeamName(s.deps, s.code, s.kid.token, { team: 1, name: "  The   Brainiacs " });
+    view = await getView(s.deps, s.code, s.kid.token);
+    expect(view.teams[1].name).toBe("The Brainiacs");
+    await expect(setTeamName(s.deps, s.code, s.kid.token, { team: 0, name: "Nope" })).rejects.toThrow(/own team/);
+    await expect(setTeamName(s.deps, s.code, s.host.token, { team: 0, name: "the brainiacs" })).rejects.toThrow(/already/);
   });
 });
 

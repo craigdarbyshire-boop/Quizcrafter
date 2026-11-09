@@ -30,31 +30,31 @@ function JoinForm() {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-8">
       <Logo size="sm" />
-      <form onSubmit={join} className="card pop w-full space-y-5 p-6">
-        <h1 className="text-center text-3xl font-bold">Join the fun! 🎉</h1>
-        <label className="block">
-          <span className="mb-1 block text-sm text-muted">Game code</span>
+      <form onSubmit={join} className="panel rise w-full space-y-5 p-6">
+        <h1 className="text-center text-2xl font-bold">Join a game</h1>
+        <label className="block space-y-1.5">
+          <span className="eyebrow">Game code</span>
           <input
             value={code}
             onChange={(e) => setCode(e.target.value.replace(/[^a-zA-Z]/g, "").slice(0, 4).toUpperCase())}
-            placeholder="ABCD"
+            placeholder="CODE"
             autoCapitalize="characters"
-            className="w-full rounded-2xl border-2 border-white/25 bg-white/10 px-4 py-3 text-center text-3xl font-bold tracking-[0.4em] placeholder:text-white/30 focus:border-yellow focus:outline-none"
+            className="field text-center text-3xl font-bold tracking-[0.4em]"
           />
         </label>
-        <label className="block">
-          <span className="mb-1 block text-sm text-muted">Your name</span>
+        <label className="block space-y-1.5">
+          <span className="eyebrow">Your name</span>
           <input
             value={name}
             onChange={(e) => setName(e.target.value.slice(0, 20))}
-            placeholder="e.g. Super Sam"
+            placeholder="Your name"
             autoFocus={code.length === 4}
-            className="w-full rounded-2xl border-2 border-white/25 bg-white/10 px-4 py-3 text-xl placeholder:text-white/30 focus:border-yellow focus:outline-none"
+            className="field"
           />
         </label>
-        {error && <p className="wiggle rounded-2xl bg-coral/25 px-4 py-2 text-center">{error}</p>}
-        <button className="btn btn-primary w-full text-xl" disabled={busy || code.length !== 4 || !name.trim()}>
-          {busy ? "Joining…" : "Let's go! 🚀"}
+        {error && <p className="shake rounded-xl border border-bad/50 bg-bad/15 px-4 py-2 text-center">{error}</p>}
+        <button className="btn btn-primary w-full" disabled={busy || code.length !== 4 || !name.trim()}>
+          {busy ? "Joining…" : "Join game"}
         </button>
       </form>
     </div>

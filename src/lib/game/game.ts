@@ -1,13 +1,15 @@
 import { randomUUID } from "crypto";
 import { isCorrectAnswer } from "../questions/answers";
 import { categoryKey } from "../questions/history";
-import type { GenerateRequest, Question } from "../questions/types";
+import { normalizeAudience, type GenerateRequest, type Question } from "../questions/types";
 import type { GameStore } from "./store";
 import {
   DEFAULT_CATEGORY,
   REVEAL_SECONDS,
   SettingsSchema,
-  TEAMS,
+  TEAM_COLORS,
+  TEAM_NAME_MAX,
+  teamName,
   type Answer,
   type Game,
   type GameQuestion,
@@ -73,6 +75,7 @@ export async function createGame(deps: GameDeps, input: { hostName: unknown; set
     qIndex: 0,
     phaseStartedAt: now,
     teamCategories: {},
+    teamNames: {},
     error: null,
   };
   await deps.store.createGame(game, host);
@@ -116,6 +119,19 @@ export async function setCategory(deps: GameDeps, codeIn: string, token: string,
   await deps.store.updateGame(game.id, { teamCategories: { ...game.teamCategories, [team]: category } });
 }
 
+export async function setTeamName(deps: GameDeps, codeIn: string, token: string, input: { team: unknown; name: unknown }) {
+  const { game, me } = await authed(deps, codeIn, token);
+  if (game.phase !== "lobby" && game.phase !== "round_over") throw new GameError("Team names can only change between rounds.");
+  const team = Number(input.team);
+  if (!Number.isInteger(team) || team < 0 || team >= game.settings.teams) throw new GameError("No such team.");
+  if (me.team !== team && me.id !== game.hostPlayerId) throw new GameError("You can only rename your own team.", 403);
+  const name = typeof input.name === "string" ? input.name.replace(/\s+/g, " ").trim().slice(0, TEAM_NAME_MAX) : "";
+  if (!name) throw new GameError("Please enter a team name.");
+  const taken = Object.entries(game.teamNames ?? {}).some(([t, n]) => Number(t) !== team && n.toLowerCase() === name.toLowerCase());
+  if (taken) throw new GameError("Another team already has that name.");
+  await deps.store.updateGame(game.id, { teamNames: { ...game.teamNames, [team]: name } });
+}
+
 // ---------- Running the game ----------
 
 /** Splits the game's questions across the teams' categories, then takes turns between teams. */
@@ -145,7 +161,7 @@ export async function startRound(deps: GameDeps, codeIn: string, token: string) 
 
   try {
     const { categories, order } = planRound(game.settings, game.teamCategories);
-    const written = await deps.writeQuestions({ categories, difficulty: game.settings.difficulty, audience: game.settings.audience ?? "family", types: game.settings.types });
+    const written = await deps.writeQuestions({ categories, difficulty: game.settings.difficulty, audience: normalizeAudience(game.settings.audience), types: game.settings.types });
     const queues = new Map<string, Question[]>();
     for (const q of written) {
       const key = categoryKey(q.category);
@@ -281,7 +297,6 @@ export async function advance(deps: GameDeps, game: Game): Promise<Game> {
 export interface TeamScore {
   team: number;
   name: string;
-  emoji: string;
   color: string;
   points: number;
   players: { id: string; name: string }[];
@@ -301,7 +316,8 @@ export async function getView(deps: GameDeps, codeIn: string, token: string) {
 
   const teams: TeamScore[] = Array.from({ length: game.settings.teams }, (_, t) => ({
     team: t,
-    ...TEAMS[t],
+    name: teamName(game.teamNames, t),
+    color: TEAM_COLORS[t],
     points: roundAnswers.filter((a) => a.team === t).reduce((s, a) => s + a.points, 0),
     players: players.filter((p) => p.team === t).map((p) => ({ id: p.id, name: p.name })),
     category: game.teamCategories[t] || DEFAULT_CATEGORY,
@@ -375,7 +391,7 @@ export type GameView = Awaited<ReturnType<typeof getView>>;
 /** Round wins and total points across every finished round of the session. */
 export function leaderboard(game: Game, answers: Answer[]) {
   const finishedRounds = game.phase === "round_over" || game.phase === "ended" ? game.round : game.round - 1;
-  const rows = Array.from({ length: game.settings.teams }, (_, t) => ({ team: t, ...TEAMS[t], wins: 0, points: 0 }));
+  const rows = Array.from({ length: game.settings.teams }, (_, t) => ({ team: t, name: teamName(game.teamNames, t), color: TEAM_COLORS[t] as string, wins: 0, points: 0 }));
   for (let r = 1; r <= finishedRounds; r++) {
     const pts = rows.map((row) => answers.filter((a) => a.round === r && a.team === row.team).reduce((s, a) => s + a.points, 0));
     const best = Math.max(...pts);

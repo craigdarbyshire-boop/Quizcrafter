@@ -10,20 +10,19 @@ export default function Home() {
   const [code, setCode] = useState("");
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-10">
-      <div className="pop">
-        <div className="bounce mb-4 text-center text-6xl">🧠</div>
+    <div className="flex flex-1 flex-col items-center justify-center gap-12">
+      <div className="rise">
         <Logo />
       </div>
 
-      <div className="card w-full space-y-4 p-6">
-        <Link href="/new" className="btn btn-primary w-full text-xl">
-          ✨ Start a new game
+      <div className="panel w-full space-y-5 p-6">
+        <Link href="/new" className="btn btn-primary w-full text-lg">
+          Host a game
         </Link>
-        <div className="flex items-center gap-3 text-sm text-muted">
-          <div className="h-px flex-1 bg-white/20" />
-          or join with a code
-          <div className="h-px flex-1 bg-white/20" />
+        <div className="flex items-center gap-3">
+          <div className="h-px flex-1 bg-white/15" />
+          <span className="eyebrow">or join with a code</span>
+          <div className="h-px flex-1 bg-white/15" />
         </div>
         <form
           className="flex gap-2"
@@ -36,11 +35,11 @@ export default function Home() {
             aria-label="Game code"
             value={code}
             onChange={(e) => setCode(e.target.value.replace(/[^a-zA-Z]/g, "").slice(0, 4).toUpperCase())}
-            placeholder="ABCD"
+            placeholder="CODE"
             autoCapitalize="characters"
-            className="w-0 flex-1 rounded-full border-2 border-white/25 bg-white/10 px-5 text-center text-2xl font-bold tracking-[0.4em] placeholder:text-white/30 focus:border-yellow focus:outline-none"
+            className="field w-0 flex-1 text-center text-2xl font-bold tracking-[0.4em]"
           />
-          <button type="submit" className="btn btn-pink" disabled={code.length !== 4}>
+          <button type="submit" className="btn btn-blue" disabled={code.length !== 4}>
             Join
           </button>
         </form>
