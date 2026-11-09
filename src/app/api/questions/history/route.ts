@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { historyStoreFromEnv } from "@/lib/questions/history";
+import { historyStore } from "@/lib/game/server";
 
 export const runtime = "nodejs";
 
 /** DELETE /api/questions/history — the "reset question history" button. */
 export async function DELETE() {
   try {
-    await historyStoreFromEnv().reset();
+    await historyStore().reset();
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("history reset failed", err);

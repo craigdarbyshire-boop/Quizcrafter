@@ -6,6 +6,15 @@ The game spec lives in the project's "Quizcrafter game spec" doc.
 
 ## What's built so far
 
+**The game** (`src/app`, `src/components`, `src/lib/game/`)
+
+- The host sets up the game (teams, questions, time, difficulty, answer mode, question types, leaderboard) and gets a 4-letter code and QR code.
+- Players join on their phones, pick a team, and each team picks its own category.
+- Every phone shows the same question and countdown. In **silent** mode each team locks in one shared answer. In **fastest first** mode the first right answer wins, and a wrong answer locks only that player out.
+- After each question the phones show the answer, a fun fact and the scores, and move on after 8 seconds or when the host taps Next.
+- With the leaderboard on, each game is a round. Round wins and points add up until the host finishes and crowns the champions.
+- Phones poll the server every second. The server moves the game on when time runs out, so there's no background job to run.
+
 **Question engine** (`src/lib/questions/`)
 
 - `POST /api/questions` writes a game's questions. Body:
@@ -38,4 +47,6 @@ npm run dev
 npm test
 ```
 
-The database table is in `supabase/migrations/` and has already been applied to the `quizcrafter` Supabase project.
+Without Supabase keys, local dev keeps games in memory. Set `QUIZCRAFTER_DEMO_QUESTIONS=1` to play with simple built-in maths questions instead of calling the AI.
+
+The database tables are in `supabase/migrations/` and have already been applied to the `quizcrafter` Supabase project.
