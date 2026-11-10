@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Logo } from "@/components/Logo";
 import { api, saveSeat, type Seat } from "@/lib/client";
-import { DEFAULT_SETTINGS, TEAM_COLORS, TIME_LIMITS, type Settings } from "@/lib/game/types";
+import { DEFAULT_SETTINGS, MODE_LABELS, TEAM_COLORS, TIME_LIMITS, type Settings } from "@/lib/game/types";
 import type { Audience, Difficulty, QuestionType } from "@/lib/questions/types";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -131,8 +131,9 @@ export default function NewGame() {
           <div className="grid gap-2">
             {(
               [
-                ["silent", "Silent answers", "Each team locks in one answer in secret."],
-                ["fastest", "Fastest finger", "First correct answer takes the points."],
+                ["silent", MODE_LABELS.silent, "Each team locks in one answer."],
+                ["fastest", MODE_LABELS.fastest, "First correct answer takes the points."],
+                ["mixed", MODE_LABELS.mixed, "A shuffle of both. Each question shows which it is."],
               ] as const
             ).map(([mode, title, blurb]) => (
               <button

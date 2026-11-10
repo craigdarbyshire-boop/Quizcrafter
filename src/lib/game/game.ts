@@ -14,6 +14,7 @@ import {
   type Game,
   type GameQuestion,
   type Player,
+  type QuestionMode,
   type Settings,
 } from "./types";
 
@@ -148,6 +149,46 @@ export function planRound(settings: Settings, teamCategories: Record<number, str
   return { categories, order };
 }
 
+/** A small seeded random number generator, so every request works out the same mix. */
+function seededRandom(seed: string) {
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) h = Math.imul(h ^ seed.charCodeAt(i), 16777619);
+  return () => {
+    h = Math.imul(h ^ (h >>> 15), 2246822507);
+    h = Math.imul(h ^ (h >>> 13), 3266489909);
+    return ((h ^= h >>> 16) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * The answer mode for each question of a round. In a mixed game about half the questions
+ * are fastest finger and half normal, shuffled, and never more than two of the same in a row.
+ * It's worked out from the game and round, so nothing extra needs saving.
+ */
+export function roundModes(game: Pick<Game, "id" | "round" | "settings">): QuestionMode[] {
+  const count = game.settings.questions;
+  if (game.settings.mode !== "mixed") return Array(count).fill(game.settings.mode);
+  const rand = seededRandom(`${game.id}:${game.round}`);
+  const fastestCount = count % 2 === 1 && rand() < 0.5 ? Math.ceil(count / 2) : Math.floor(count / 2);
+  const base: QuestionMode[] = Array.from({ length: count }, (_, i) => (i < fastestCount ? "fastest" : "silent"));
+  const threeInARow = (m: QuestionMode[]) => m.some((x, i) => i >= 2 && x === m[i - 1] && x === m[i - 2]);
+  for (let attempt = 0; attempt < 2000; attempt++) {
+    const modes = [...base];
+    for (let i = modes.length - 1; i > 0; i--) {
+      const j = Math.floor(rand() * (i + 1));
+      [modes[i], modes[j]] = [modes[j], modes[i]];
+    }
+    if (!threeInARow(modes)) return modes;
+  }
+  // Practically never reached: plain alternation is always a fair mix.
+  return Array.from({ length: count }, (_, i) => ((i % 2 === 0) === fastestCount > count / 2 ? "fastest" : "silent"));
+}
+
+/** The answer mode of the question the game is on now. */
+export function currentMode(game: Pick<Game, "id" | "round" | "qIndex" | "settings">): QuestionMode {
+  return roundModes(game)[game.qIndex] ?? "silent";
+}
+
 export async function startRound(deps: GameDeps, codeIn: string, token: string) {
   const { game } = await authed(deps, codeIn, token, { hostOnly: true });
   if (game.phase !== "lobby" && game.phase !== "round_over") throw new GameError("The game has already started.");
@@ -196,7 +237,7 @@ export async function submitAnswer(deps: GameDeps, codeIn: string, token: string
   const q = questions[game.qIndex]?.question;
   if (!q) throw new GameError("No question right now.");
   const correct = isCorrectAnswer(q, text);
-  const fastest = game.settings.mode === "fastest";
+  const fastest = currentMode(game) === "fastest";
 
   const base: Answer = {
     gameId: game.id,
@@ -256,7 +297,7 @@ async function moveOn(deps: GameDeps, game: Game) {
 /** Is everyone done with the current question? */
 function everyoneAnswered(game: Game, players: Player[], answers: Answer[]): boolean {
   const here = answers.filter((a) => a.round === game.round && a.qIndex === game.qIndex);
-  if (game.settings.mode === "fastest") {
+  if (currentMode(game) === "fastest") {
     if (here.some((a) => a.winLock !== null)) return true;
     return players.length > 0 && players.every((p) => here.some((a) => a.playerId === p.id));
   }
@@ -330,6 +371,7 @@ export async function getView(deps: GameDeps, codeIn: string, token: string) {
   const myAnswer = here.find((a) => a.playerId === me.id) ?? null;
   const teamAnswer = here.find((a) => a.team === me.team && a.teamLock !== null) ?? null;
   const winner = here.find((a) => a.winLock !== null) ?? null;
+  const mode = currentMode(game);
 
   const question =
     showQuestion && current
@@ -342,6 +384,7 @@ export async function getView(deps: GameDeps, codeIn: string, token: string) {
           points: current.question.points,
           category: current.question.category,
           pickedBy: current.team,
+          mode,
           endsAt: game.phaseStartedAt + game.settings.timeLimit * 1000,
           // Never send the answer while the question is live.
           answer: revealing ? current.question.answer : null,
@@ -375,7 +418,7 @@ export async function getView(deps: GameDeps, codeIn: string, token: string) {
     teams,
     question,
     mine:
-      game.settings.mode === "fastest"
+      mode === "fastest"
         ? myAnswer && { answer: myAnswer.answer, by: me.name, correct: myAnswer.correct as boolean | null }
         : teamAnswer && {
             answer: teamAnswer.answer,

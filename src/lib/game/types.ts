@@ -2,8 +2,20 @@ import { z } from "zod";
 import { AUDIENCES, DIFFICULTIES, QUESTION_TYPES, type Question } from "../questions/types";
 
 export const TIME_LIMITS = [5, 10, 15, 20, 30, 60] as const;
-export const ANSWER_MODES = ["fastest", "silent"] as const;
+/**
+ * "silent" is shown to players as "Normal answers" (one answer per team). The stored value
+ * keeps its old name so games saved earlier still load. "mixed" switches per question.
+ */
+export const ANSWER_MODES = ["silent", "fastest", "mixed"] as const;
 export type AnswerMode = (typeof ANSWER_MODES)[number];
+/** The mode a single question is played in. */
+export type QuestionMode = Exclude<AnswerMode, "mixed">;
+
+export const MODE_LABELS: Record<AnswerMode, string> = {
+  silent: "Normal answers",
+  fastest: "Fastest finger",
+  mixed: "Mixed",
+};
 
 /** How long the answer is shown before the next question starts on its own. */
 export const REVEAL_SECONDS = 8;
@@ -102,7 +114,7 @@ export interface Answer {
   answer: string;
   correct: boolean;
   points: number;
-  /** Silent mode: set to the team number so only one answer per team is accepted. */
+  /** Normal mode: set to the team number so only one answer per team is accepted. */
   teamLock: number | null;
   /** Fastest mode: set to 1 on a correct answer so only the first one wins. */
   winLock: number | null;

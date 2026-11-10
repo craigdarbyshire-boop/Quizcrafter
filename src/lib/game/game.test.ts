@@ -8,6 +8,7 @@ import {
   joinGame,
   nextQuestion,
   planRound,
+  roundModes,
   setCategory,
   setTeamName,
   setTeam,
@@ -92,7 +93,7 @@ describe("planning a round", () => {
   });
 });
 
-describe("silent answers", () => {
+describe("normal answers", () => {
   it("takes one answer per team and hides the answer until the reveal", async () => {
     const s = await lobby();
     await setCategory(s.deps, s.code, s.kid.token, { team: 1, category: "Animals" });
@@ -144,6 +145,55 @@ describe("fastest first", () => {
     expect(view.question?.winner?.name).toBe("Alex");
     expect(view.teams[0].points).toBe(q.points);
     expect(view.teams[1].points).toBe(0);
+  });
+});
+
+describe("mixed answer modes", () => {
+  it("splits each round about half and half, never three of a kind in a row", () => {
+    for (let n = 0; n < 50; n++) {
+      for (const questions of [5, 10, 11, 30]) {
+        const modes = roundModes({ id: `game-${n}`, round: 1, settings: { ...DEFAULT_SETTINGS, mode: "mixed", questions } });
+        expect(modes).toHaveLength(questions);
+        const fastest = modes.filter((m) => m === "fastest").length;
+        expect(Math.abs(fastest - (questions - fastest))).toBeLessThanOrEqual(1);
+        for (let i = 2; i < modes.length; i++) expect(modes[i] === modes[i - 1] && modes[i] === modes[i - 2]).toBe(false);
+      }
+    }
+  });
+
+  it("gives the same mix every time for a round, and a different one next round", () => {
+    const game = { id: "abc", round: 1, settings: { ...DEFAULT_SETTINGS, mode: "mixed" as const, questions: 20 } };
+    expect(roundModes(game)).toEqual(roundModes(game));
+    expect(roundModes(game)).not.toEqual(roundModes({ ...game, round: 2 }));
+  });
+
+  it("uses one mode for every question when not mixed", () => {
+    expect(new Set(roundModes({ id: "x", round: 1, settings: { ...DEFAULT_SETTINGS, mode: "fastest" } }))).toEqual(new Set(["fastest"]));
+  });
+
+  it("plays each question by its own mode", async () => {
+    const s = await lobby({ mode: "mixed", questions: 10 });
+    await startRound(s.deps, s.code, s.host.token);
+    const game = (await s.store.getGameByCode(s.code))!;
+    const modes = roundModes(game);
+    for (let i = 0; i < 10; i++) {
+      const view = await getView(s.deps, s.code, s.host.token);
+      expect(view.question?.mode).toBe(modes[i]);
+      const q = await currentAnswer(s);
+      const result = await submitAnswer(s.deps, s.code, s.host.token, { answer: q.answer });
+      if (modes[i] === "fastest") {
+        // Fastest finger: the host gets told straight away and the question ends.
+        expect(result).toEqual({ correct: true });
+        expect((await getView(s.deps, s.code, s.host.token)).phase).toBe("reveal");
+      } else {
+        // Normal: no feedback yet, and the other team still gets to answer.
+        expect(result).toEqual({ correct: undefined });
+        expect((await getView(s.deps, s.code, s.host.token)).phase).toBe("question");
+        await submitAnswer(s.deps, s.code, s.kid.token, { answer: "wrong" });
+      }
+      await nextQuestion(s.deps, s.code, s.host.token);
+    }
+    expect((await getView(s.deps, s.code, s.host.token)).phase).toBe("round_over");
   });
 });
 
