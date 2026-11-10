@@ -3,7 +3,7 @@
 import QRCode from "qrcode";
 import { useEffect, useState } from "react";
 import type { GameView } from "@/lib/game/game";
-import { CATEGORY_IDEAS, TEAM_NAME_MAX } from "@/lib/game/types";
+import { CATEGORY_IDEAS, MODE_LABELS, TEAM_NAME_MAX } from "@/lib/game/types";
 import { TeamBadge } from "./Logo";
 
 type Act = (path: string, body?: unknown) => Promise<unknown>;
@@ -195,7 +195,7 @@ export function Lobby({ view, act }: { view: GameView; act: Act }) {
           `${s.questions} questions`,
           `${s.timeLimit}s per question`,
           s.difficulty[0].toUpperCase() + s.difficulty.slice(1),
-          s.mode === "fastest" ? "Fastest finger" : "Silent answers",
+          s.mode === "mixed" ? "Mixed answer modes" : MODE_LABELS[s.mode],
           s.leaderboard ? "Leaderboard on" : null,
         ]
           .filter(Boolean)

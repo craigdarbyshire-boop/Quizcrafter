@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { GameView } from "@/lib/game/game";
+import { MODE_LABELS } from "@/lib/game/types";
 import { TeamBadge } from "./Logo";
 
 type Act = (path: string, body?: unknown) => Promise<unknown>;
@@ -45,7 +46,8 @@ export function QuestionScreen({ view, act, now }: { view: GameView; act: Act; n
   const myTeam = view.teams[view.me.team];
   const pickedBy = view.teams[q.pickedBy];
   const locked = !!view.mine || sending;
-  const fastest = view.settings.mode === "fastest";
+  const fastest = q.mode === "fastest";
+  const mixed = view.settings.mode === "mixed";
 
   async function answer(a: string) {
     if (locked || revealing || !a.trim()) return;
@@ -88,6 +90,16 @@ export function QuestionScreen({ view, act, now }: { view: GameView; act: Act; n
           <div className="text-[10px] font-semibold uppercase tracking-wider text-muted">pts</div>
         </div>
       </div>
+
+      {mixed && (
+        <div
+          key={q.index}
+          className={`rise flex items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold ${fastest ? "border-gold/70 bg-gold/10 text-gold" : "border-white/15 bg-black/30"}`}
+        >
+          <span className="uppercase tracking-wider">{MODE_LABELS[q.mode]}</span>
+          <span className="font-normal text-muted">· {fastest ? "first correct answer wins" : "one answer per team"}</span>
+        </div>
+      )}
 
       <div className="question-card rise px-5 py-9 text-center">
         <h1 className="text-[1.6rem] font-bold leading-snug">{q.text}</h1>
@@ -156,7 +168,7 @@ function StatusLine({ view, myTeamName, fastest }: { view: GameView; myTeamName:
     if (fastest) text = mine.correct ? "Correct!" : "Wrong. You're locked out of this question.";
     else text = `${myTeamName} locked in${mine.by && mine.by !== view.me.name ? ` (by ${mine.by})` : ""}. Waiting for other teams…`;
   } else {
-    text = fastest ? "First correct answer wins." : `One answer for ${myTeamName}. Decide quietly.`;
+    text = fastest ? "First correct answer wins." : `One answer for ${myTeamName}. Agree on it together.`;
   }
   const active = view.teams.filter((t) => t.players.length > 0);
   return (
