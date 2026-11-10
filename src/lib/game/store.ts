@@ -13,7 +13,6 @@ export interface GameStore {
   updateGame(id: string, patch: GamePatch, expect?: Partial<Pick<Game, "phase" | "qIndex" | "round">>): Promise<boolean>;
   getPlayers(gameId: string): Promise<Player[]>;
   addPlayer(player: Player): Promise<void>;
-  setPlayerTeam(playerId: string, team: number): Promise<void>;
   setQuestions(questions: GameQuestion[]): Promise<void>;
   getQuestions(gameId: string, round: number): Promise<GameQuestion[]>;
   /** Returns "conflict" when a lock (one answer per team, or first correct wins) is already taken. */
@@ -47,10 +46,6 @@ export class MemoryGameStore implements GameStore {
   }
   async addPlayer(player: Player) {
     this.players.push({ ...player });
-  }
-  async setPlayerTeam(playerId: string, team: number) {
-    const p = this.players.find((x) => x.id === playerId);
-    if (p) p.team = team;
   }
   async setQuestions(questions: GameQuestion[]) {
     this.questions.push(...structuredClone(questions));

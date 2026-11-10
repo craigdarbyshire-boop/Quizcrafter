@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Logo } from "@/components/Logo";
 import { api, saveSeat, type Seat } from "@/lib/client";
-import { DEFAULT_SETTINGS, MODE_LABELS, TEAM_COLORS, TIME_LIMITS, type Settings } from "@/lib/game/types";
+import { DEFAULT_SETTINGS, MAX_PLAYERS, MODE_LABELS, TIME_LIMITS, type Settings } from "@/lib/game/types";
 import type { Audience, Difficulty, QuestionType } from "@/lib/questions/types";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -66,7 +66,7 @@ const TYPE_LABELS: Record<QuestionType, string> = {
   true_false: "True or false",
   typed: "Type the answer",
 };
-const AUDIENCE_LABELS: Record<Audience, string> = { teens: "Teens (14+)", mixed: "Teens & adults", adults: "Adults" };
+const AUDIENCE_LABELS: Record<Audience, string> = { children: "Kids (13 & under)", teens: "Teens (14+)", mixed: "Teens & adults", adults: "Adults" };
 const DIFFICULTY_LABELS: Record<Difficulty, string> = { easy: "Easy", medium: "Medium", hard: "Hard" };
 
 export default function NewGame() {
@@ -101,22 +101,12 @@ export default function NewGame() {
           <input value={name} onChange={(e) => setName(e.target.value.slice(0, 20))} placeholder="Quizmaster" className="field" />
         </Section>
 
-        <div className="grid grid-cols-2 gap-4">
-          <Section title="Teams">
-            <Stepper value={s.teams} min={2} max={10} onChange={(v) => set("teams", v)} />
-          </Section>
-          <Section title="Questions">
-            <Stepper value={s.questions} min={5} max={30} onChange={(v) => set("questions", v)} />
-          </Section>
-        </div>
-        <div className="-mt-3 flex gap-1.5" aria-hidden>
-          {TEAM_COLORS.slice(0, s.teams).map((c) => (
-            <span key={c} className="h-1.5 flex-1 rounded-full" style={{ background: c }} />
-          ))}
-        </div>
+        <Section title="Questions">
+          <Stepper value={s.questions} min={5} max={30} onChange={(v) => set("questions", v)} />
+        </Section>
 
         <Section title="Who's playing?">
-          <Segmented options={["teens", "mixed", "adults"] as const} value={s.audience} onChange={(v) => set("audience", v)} label={(v) => AUDIENCE_LABELS[v]} />
+          <Segmented options={["children", "teens", "mixed", "adults"] as const} value={s.audience} onChange={(v) => set("audience", v)} label={(v) => AUDIENCE_LABELS[v]} />
         </Section>
 
         <Section title="Difficulty">
@@ -131,7 +121,7 @@ export default function NewGame() {
           <div className="grid gap-2">
             {(
               [
-                ["silent", MODE_LABELS.silent, "Each team locks in one answer."],
+                ["silent", MODE_LABELS.silent, "Everyone locks in one answer."],
                 ["fastest", MODE_LABELS.fastest, "First correct answer takes the points."],
                 ["mixed", MODE_LABELS.mixed, "A shuffle of both. Each question shows which it is."],
               ] as const
@@ -171,7 +161,7 @@ export default function NewGame() {
         </label>
       </div>
 
-      <p className="text-center text-sm text-muted">Teams choose their own names and categories in the lobby.</p>
+      <p className="text-center text-sm text-muted">Everyone plays for themselves, up to {MAX_PLAYERS} players. Each player picks a category in the lobby.</p>
       {error && <p className="shake rounded-xl border border-bad/50 bg-bad/15 px-4 py-2 text-center">{error}</p>}
       <button className="btn btn-primary text-lg" disabled={busy || !name.trim()}>
         {busy ? "Creating…" : "Create game"}

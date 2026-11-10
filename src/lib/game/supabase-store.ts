@@ -114,11 +114,6 @@ export class SupabaseGameStore implements GameStore {
     check(error, "Couldn't add the player");
   }
 
-  async setPlayerTeam(playerId: string, team: number) {
-    const { error } = await this.db.from("players").update({ team }).eq("id", playerId);
-    check(error, "Couldn't change team");
-  }
-
   async setQuestions(questions: GameQuestion[]) {
     const { error } = await this.db.from("game_questions").insert(
       questions.map((q) => ({ game_id: q.gameId, round: q.round, idx: q.idx, team: q.team, question: q.question })),

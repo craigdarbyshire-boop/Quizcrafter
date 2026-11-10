@@ -53,6 +53,8 @@ export default function GamePage() {
     return () => clearInterval(id);
   }, [seat, refresh]);
 
+  const now = useCallback(() => Date.now() + offset, [offset]);
+
   const act = useCallback(
     async (path: string, body?: unknown) => {
       if (!seat) return;
@@ -78,7 +80,6 @@ export default function GamePage() {
     );
   }
 
-  const now = () => Date.now() + offset;
 
   return (
     <>
@@ -89,7 +90,7 @@ export default function GamePage() {
       )}
       {view.phase === "lobby" && <Lobby view={view} act={act} />}
       {view.phase === "generating" && <Generating view={view} />}
-      {(view.phase === "question" || view.phase === "reveal") && <QuestionScreen key={`${view.round}-${view.question?.index}`} view={view} act={act} now={now} />}
+      {(view.phase === "question" || view.phase === "reveal") && <QuestionScreen key={`${view.round}-${view.question?.index}`} view={view} act={act} now={now} refresh={refresh} />}
       {(view.phase === "round_over" || view.phase === "ended") && <RoundOver view={view} act={act} />}
       {view.phase === "reveal" && view.mine?.correct && <Confetti key={`c-${view.round}-${view.question?.index}`} />}
     </>

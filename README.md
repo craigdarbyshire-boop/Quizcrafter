@@ -8,10 +8,10 @@ The game spec lives in the project's "Quizcrafter game spec" doc.
 
 **The game** (`src/app`, `src/components`, `src/lib/game/`)
 
-- The host sets up the game (teams, questions, time, difficulty, answer mode, question types, leaderboard) and gets a 4-letter code and QR code.
-- Players join on their phones, pick a team, and each team picks its own category.
-- Every phone shows the same question and countdown. In **silent** mode each team locks in one shared answer. In **fastest first** mode the first right answer wins, and a wrong answer locks only that player out.
-- After each question the phones show the answer, a fun fact and the scores, and move on after 8 seconds or when the host taps Next.
+- The host sets up the game (questions, who's playing, time, difficulty, answer mode, question types, leaderboard) and gets a 4-letter code and QR code.
+- Players join on their phones (up to 10). Everyone plays for themselves: each player is their own team, named after them, and picks their own category.
+- Every phone shows the same question and countdown. In **Normal answers** mode everyone locks in one answer. In **Fastest finger** mode the first right answer wins, and a wrong answer locks only that player out. Every fastest finger question starts with a 3-second full-screen warning. **Mixed** shuffles both.
+- After each question the phones show the answer, a fun fact and the scores, and move on after 8 seconds or when the host taps Next. Every 5 questions a full-screen leaderboard shows for 5 seconds.
 - With the leaderboard on, each game is a round. Round wins and points add up until the host finishes and crowns the champions.
 - Phones poll the server every second. The server moves the game on when time runs out, so there's no background job to run.
 
