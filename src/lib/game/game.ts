@@ -5,11 +5,13 @@ import { normalizeAudience, type GenerateRequest, type Question } from "../quest
 import type { GameStore } from "./store";
 import {
   DEFAULT_CATEGORY,
+  GET_READY_SECONDS,
+  MAX_PLAYERS,
   REVEAL_SECONDS,
   SettingsSchema,
+  STANDINGS_EVERY,
+  STANDINGS_SECONDS,
   TEAM_COLORS,
-  TEAM_NAME_MAX,
-  teamName,
   type Answer,
   type Game,
   type GameQuestion,
@@ -88,10 +90,13 @@ export async function joinGame(deps: GameDeps, codeIn: string, input: { name: un
   if (game.phase === "ended") throw new GameError("That game has finished.");
   const name = cleanName(input.name);
   const players = await deps.store.getPlayers(game.id);
-  if (players.length >= 50) throw new GameError("That game is full.");
-  // Put newcomers on the team with the fewest players.
-  const sizes = Array.from({ length: game.settings.teams }, (_, t) => players.filter((p) => p.team === t).length);
-  const team = sizes.indexOf(Math.min(...sizes));
+  // Every player is their own team and their name is the team's name, so names must differ.
+  if (players.some((p) => p.name.toLowerCase() === name.toLowerCase())) {
+    throw new GameError("Someone in this game already has that name. Try adding an initial.");
+  }
+  const taken = new Set(players.map((p) => p.team));
+  const team = Array.from({ length: MAX_PLAYERS }, (_, t) => t).find((t) => !taken.has(t));
+  if (team === undefined) throw new GameError(`That game is full (${MAX_PLAYERS} players max).`);
   const player: Player = { id: randomUUID(), gameId: game.id, name, team, token: randomUUID(), joinedAt: deps.now?.() ?? Date.now() };
   await deps.store.addPlayer(player);
   return { code: game.code, playerId: player.id, token: player.token };
@@ -99,52 +104,34 @@ export async function joinGame(deps: GameDeps, codeIn: string, input: { name: un
 
 // ---------- Lobby actions ----------
 
-export async function setTeam(deps: GameDeps, codeIn: string, token: string, input: { playerId?: unknown; team: unknown }) {
-  const { game, me } = await authed(deps, codeIn, token);
-  if (game.phase !== "lobby" && game.phase !== "round_over") throw new GameError("Teams can only change between rounds.");
-  const team = Number(input.team);
-  if (!Number.isInteger(team) || team < 0 || team >= game.settings.teams) throw new GameError("No such team.");
-  const targetId = typeof input.playerId === "string" ? input.playerId : me.id;
-  if (targetId !== me.id && me.id !== game.hostPlayerId) throw new GameError("Only the host can move other players.", 403);
-  await deps.store.setPlayerTeam(targetId, team);
-}
-
 export async function setCategory(deps: GameDeps, codeIn: string, token: string, input: { team: unknown; category: unknown }) {
   const { game, me } = await authed(deps, codeIn, token);
   if (game.phase !== "lobby" && game.phase !== "round_over") throw new GameError("Categories can only change between rounds.");
   const team = Number(input.team);
-  if (!Number.isInteger(team) || team < 0 || team >= game.settings.teams) throw new GameError("No such team.");
-  if (me.team !== team && me.id !== game.hostPlayerId) throw new GameError("You can only pick your own team's category.", 403);
+  const players = await deps.store.getPlayers(game.id);
+  if (!players.some((p) => p.team === team)) throw new GameError("No such player.");
+  if (me.team !== team && me.id !== game.hostPlayerId) throw new GameError("You can only pick your own category.", 403);
   const category = typeof input.category === "string" ? input.category.replace(/\s+/g, " ").trim().slice(0, 40) : "";
   if (!category) throw new GameError("Please choose a category.");
   await deps.store.updateGame(game.id, { teamCategories: { ...game.teamCategories, [team]: category } });
 }
 
-export async function setTeamName(deps: GameDeps, codeIn: string, token: string, input: { team: unknown; name: unknown }) {
-  const { game, me } = await authed(deps, codeIn, token);
-  if (game.phase !== "lobby" && game.phase !== "round_over") throw new GameError("Team names can only change between rounds.");
-  const team = Number(input.team);
-  if (!Number.isInteger(team) || team < 0 || team >= game.settings.teams) throw new GameError("No such team.");
-  if (me.team !== team && me.id !== game.hostPlayerId) throw new GameError("You can only rename your own team.", 403);
-  const name = typeof input.name === "string" ? input.name.replace(/\s+/g, " ").trim().slice(0, TEAM_NAME_MAX) : "";
-  if (!name) throw new GameError("Please enter a team name.");
-  const taken = Object.entries(game.teamNames ?? {}).some(([t, n]) => Number(t) !== team && n.toLowerCase() === name.toLowerCase());
-  if (taken) throw new GameError("Another team already has that name.");
-  await deps.store.updateGame(game.id, { teamNames: { ...game.teamNames, [team]: name } });
-}
-
 // ---------- Running the game ----------
 
-/** Splits the game's questions across the teams' categories, then takes turns between teams. */
-export function planRound(settings: Settings, teamCategories: Record<number, string>) {
-  const perTeam = Array.from({ length: settings.teams }, (_, t) =>
-    Math.floor(settings.questions / settings.teams) + (t < settings.questions % settings.teams ? 1 : 0),
-  );
-  const categories = perTeam.map((count, t) => ({ category: teamCategories[t] || DEFAULT_CATEGORY, count })).filter((c) => c.count > 0);
+/** The team numbers in play: one per player, in order. */
+export function playingTeams(players: Pick<Player, "team">[]): number[] {
+  return [...new Set(players.map((p) => p.team))].sort((a, b) => a - b);
+}
+
+/** Splits the game's questions across the players' categories, then takes turns between players. */
+export function planRound(settings: Pick<Settings, "questions">, teamCategories: Record<number, string>, teams: number[]) {
+  const n = Math.max(teams.length, 1);
+  const perTeam = teams.map((_, i) => Math.floor(settings.questions / n) + (i < settings.questions % n ? 1 : 0));
+  const categories = perTeam.map((count, i) => ({ category: teamCategories[teams[i]] || DEFAULT_CATEGORY, count })).filter((c) => c.count > 0);
   const order: number[] = [];
   const left = [...perTeam];
   while (order.length < settings.questions) {
-    for (let t = 0; t < settings.teams; t++) if (left[t]-- > 0) order.push(t);
+    for (let i = 0; i < teams.length; i++) if (left[i]-- > 0) order.push(teams[i]);
   }
   return { categories, order };
 }
@@ -189,6 +176,36 @@ export function currentMode(game: Pick<Game, "id" | "round" | "qIndex" | "settin
   return roundModes(game)[game.qIndex] ?? "silent";
 }
 
+type Timed = Pick<Game, "id" | "round" | "qIndex" | "settings" | "phaseStartedAt">;
+
+/**
+ * When the current question can be answered. A fastest finger question first shows a
+ * full-screen warning for a few seconds, and the question stays hidden until it's over.
+ */
+export function questionOpensAt(game: Timed): number {
+  return game.phaseStartedAt + (currentMode(game) === "fastest" ? GET_READY_SECONDS * 1000 : 0);
+}
+
+export function questionEndsAt(game: Timed): number {
+  return questionOpensAt(game) + game.settings.timeLimit * 1000;
+}
+
+/** After every 5th question (but not the last, which has the results screen) the scores show full screen. */
+export function showsStandings(game: Pick<Game, "qIndex" | "settings">): boolean {
+  const done = game.qIndex + 1;
+  return done % STANDINGS_EVERY === 0 && done < game.settings.questions;
+}
+
+/** When the scores take over from the answer, if they do after this question. */
+function standingsAt(game: Timed): number | null {
+  return showsStandings(game) ? game.phaseStartedAt + REVEAL_SECONDS * 1000 : null;
+}
+
+/** When the reveal (and the scores, if shown) ends and the game moves on by itself. */
+function revealEndsAt(game: Timed): number {
+  return game.phaseStartedAt + (REVEAL_SECONDS + (showsStandings(game) ? STANDINGS_SECONDS : 0)) * 1000;
+}
+
 export async function startRound(deps: GameDeps, codeIn: string, token: string) {
   const { game } = await authed(deps, codeIn, token, { hostOnly: true });
   if (game.phase !== "lobby" && game.phase !== "round_over") throw new GameError("The game has already started.");
@@ -201,7 +218,7 @@ export async function startRound(deps: GameDeps, codeIn: string, token: string) 
   if (!claimed) return; // another tap got there first
 
   try {
-    const { categories, order } = planRound(game.settings, game.teamCategories);
+    const { categories, order } = planRound(game.settings, game.teamCategories, playingTeams(await deps.store.getPlayers(game.id)));
     const written = await deps.writeQuestions({ categories, difficulty: game.settings.difficulty, audience: normalizeAudience(game.settings.audience), types: game.settings.types });
     const queues = new Map<string, Question[]>();
     for (const q of written) {
@@ -230,6 +247,7 @@ export async function submitAnswer(deps: GameDeps, codeIn: string, token: string
   const { game: g0, me } = await authed(deps, codeIn, token);
   const game = await advance(deps, g0);
   if (game.phase !== "question") throw new GameError("Too late, time's up!");
+  if ((deps.now?.() ?? Date.now()) < questionOpensAt(game)) throw new GameError("Wait for the question!");
   const text = typeof input.answer === "string" ? input.answer.trim().slice(0, 100) : "";
   if (!text) throw new GameError("Please give an answer.");
 
@@ -262,7 +280,7 @@ export async function submitAnswer(deps: GameDeps, codeIn: string, token: string
     result = await deps.store.insertAnswer({ ...base, points: correct && !fastest ? q.points : 0 });
   }
   if (result === "conflict") {
-    throw new GameError(fastest ? "You've already answered this one." : "Your team has already answered.");
+    throw new GameError("You've already answered this one.");
   }
   await advance(deps, game);
   return { correct: fastest ? correct : undefined };
@@ -272,6 +290,17 @@ export async function nextQuestion(deps: GameDeps, codeIn: string, token: string
   const { game: g0 } = await authed(deps, codeIn, token, { hostOnly: true });
   const game = await advance(deps, g0);
   if (game.phase !== "reveal") return;
+  const now = deps.now?.() ?? Date.now();
+  const scoresAt = standingsAt(game);
+  if (scoresAt !== null && now < scoresAt) {
+    // Skip the rest of the answer, but still show the scores.
+    await deps.store.updateGame(
+      game.id,
+      { phaseStartedAt: now - REVEAL_SECONDS * 1000 },
+      { phase: "reveal", qIndex: game.qIndex, round: game.round },
+    );
+    return;
+  }
   await moveOn(deps, game);
 }
 
@@ -313,7 +342,7 @@ export async function advance(deps: GameDeps, game: Game): Promise<Game> {
   const now = deps.now?.() ?? Date.now();
   for (let i = 0; i < 3; i++) {
     if (game.phase === "question") {
-      const timeUp = now >= game.phaseStartedAt + game.settings.timeLimit * 1000;
+      const timeUp = now >= questionEndsAt(game);
       const done =
         timeUp ||
         everyoneAnswered(game, await deps.store.getPlayers(game.id), await deps.store.getAnswers(game.id, game.round));
@@ -323,7 +352,7 @@ export async function advance(deps: GameDeps, game: Game): Promise<Game> {
       // The request writing questions died; let the host try again.
       const back = game.round > 1 ? { phase: "round_over" as const, round: game.round - 1 } : { phase: "lobby" as const };
       await deps.store.updateGame(game.id, { ...back, error: "Writing the questions took too long. Please try again." }, { phase: "generating", round: game.round });
-    } else if (game.phase === "reveal" && now >= game.phaseStartedAt + REVEAL_SECONDS * 1000) {
+    } else if (game.phase === "reveal" && now >= revealEndsAt(game)) {
       await moveOn(deps, game);
     } else {
       return game;
@@ -355,10 +384,11 @@ export async function getView(deps: GameDeps, codeIn: string, token: string) {
   ]);
   const roundAnswers = allAnswers.filter((a) => a.round === game.round);
 
-  const teams: TeamScore[] = Array.from({ length: game.settings.teams }, (_, t) => ({
+  // Every player is their own team, named after them.
+  const teams: TeamScore[] = playingTeams(players).map((t) => ({
     team: t,
-    name: teamName(game.teamNames, t),
-    color: TEAM_COLORS[t],
+    name: teamName(players, t),
+    color: TEAM_COLORS[t % TEAM_COLORS.length],
     points: roundAnswers.filter((a) => a.team === t).reduce((s, a) => s + a.points, 0),
     players: players.filter((p) => p.team === t).map((p) => ({ id: p.id, name: p.name })),
     category: game.teamCategories[t] || DEFAULT_CATEGORY,
@@ -372,20 +402,24 @@ export async function getView(deps: GameDeps, codeIn: string, token: string) {
   const teamAnswer = here.find((a) => a.team === me.team && a.teamLock !== null) ?? null;
   const winner = here.find((a) => a.winLock !== null) ?? null;
   const mode = currentMode(game);
+  const opensAt = questionOpensAt(game);
+  // During the fastest finger warning the question itself stays on the server.
+  const gettingReady = game.phase === "question" && now < opensAt;
 
   const question =
     showQuestion && current
       ? {
           index: game.qIndex,
           total: game.settings.questions,
-          text: current.question.question,
+          text: gettingReady ? "" : current.question.question,
           type: current.question.type,
-          options: current.question.options,
+          options: gettingReady ? [] : current.question.options,
           points: current.question.points,
           category: current.question.category,
           pickedBy: current.team,
           mode,
-          endsAt: game.phaseStartedAt + game.settings.timeLimit * 1000,
+          opensAt,
+          endsAt: questionEndsAt(game),
           // Never send the answer while the question is live.
           answer: revealing ? current.question.answer : null,
           funFact: revealing ? current.question.fun_fact : null,
@@ -412,7 +446,9 @@ export async function getView(deps: GameDeps, codeIn: string, token: string) {
     round: game.round,
     error: game.error,
     settings: game.settings,
-    revealEndsAt: revealing ? game.phaseStartedAt + REVEAL_SECONDS * 1000 : null,
+    revealEndsAt: revealing ? revealEndsAt(game) : null,
+    /** When the full-screen scores start, if this reveal ends with them. */
+    standingsAt: revealing ? standingsAt(game) : null,
     me: { id: me.id, name: me.name, team: me.team, isHost: me.id === game.hostPlayerId },
     hostName: players.find((p) => p.id === game.hostPlayerId)?.name ?? "",
     teams,
@@ -425,28 +461,33 @@ export async function getView(deps: GameDeps, codeIn: string, token: string) {
             by: players.find((p) => p.id === teamAnswer.playerId)?.name ?? "",
             correct: revealing ? teamAnswer.correct : null,
           },
-    leaderboard: game.settings.leaderboard ? leaderboard(game, allAnswers) : null,
+    leaderboard: game.settings.leaderboard ? leaderboard(game, allAnswers, players) : null,
   };
 }
 
 export type GameView = Awaited<ReturnType<typeof getView>>;
 
 /** Round wins and total points across every finished round of the session. */
-export function leaderboard(game: Game, answers: Answer[]) {
+export function leaderboard(game: Game, answers: Answer[], players: Player[]) {
   const finishedRounds = game.phase === "round_over" || game.phase === "ended" ? game.round : game.round - 1;
-  const rows = Array.from({ length: game.settings.teams }, (_, t) => ({ team: t, name: teamName(game.teamNames, t), color: TEAM_COLORS[t] as string, wins: 0, points: 0 }));
+  const rows = playingTeams(players).map((t) => ({ team: t, name: teamName(players, t), color: TEAM_COLORS[t % TEAM_COLORS.length] as string, wins: 0, points: 0 }));
   for (let r = 1; r <= finishedRounds; r++) {
     const pts = rows.map((row) => answers.filter((a) => a.round === r && a.team === row.team).reduce((s, a) => s + a.points, 0));
     const best = Math.max(...pts);
-    rows.forEach((row, t) => {
-      row.points += pts[t];
-      if (best > 0 && pts[t] === best) row.wins++;
+    rows.forEach((row, i) => {
+      row.points += pts[i];
+      if (best > 0 && pts[i] === best) row.wins++;
     });
   }
   return { rounds: finishedRounds, rows: rows.sort((a, b) => b.wins - a.wins || b.points - a.points) };
 }
 
 // ---------- Helpers ----------
+
+/** A team's name is its player's name. */
+function teamName(players: Player[], team: number): string {
+  return players.find((p) => p.team === team)?.name ?? `Player ${team + 1}`;
+}
 
 async function mustGetGame(deps: GameDeps, codeIn: string): Promise<Game> {
   const game = await deps.store.getGameByCode(normalizeCode(codeIn));

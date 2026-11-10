@@ -36,18 +36,29 @@ function Timer({ endsAt, total, now }: { endsAt: number; total: number; now: num
   );
 }
 
-export function QuestionScreen({ view, act, now }: { view: GameView; act: Act; now: () => number }) {
+export function QuestionScreen({ view, act, now, refresh }: { view: GameView; act: Act; now: () => number; refresh: () => void }) {
   const q = view.question!;
   const t = useNow(now);
   const revealing = view.phase === "reveal";
   const [typed, setTyped] = useState("");
   const [sending, setSending] = useState(false);
   const [picked, setPicked] = useState<string | null>(null);
-  const myTeam = view.teams[view.me.team];
-  const pickedBy = view.teams[q.pickedBy];
+  const pickedBy = view.teams.find((x) => x.team === q.pickedBy);
   const locked = !!view.mine || sending;
   const fastest = q.mode === "fastest";
   const mixed = view.settings.mode === "mixed";
+  const gettingReady = !revealing && t < q.opensAt;
+  const standingsAt = view.standingsAt;
+  const showStandings = revealing && standingsAt !== null && t >= standingsAt;
+
+  // Fetch the question the moment the fastest finger warning ends, rather than on the next poll.
+  useEffect(() => {
+    if (revealing) return;
+    const wait = q.opensAt - now();
+    if (wait <= 0) return;
+    const id = setTimeout(refresh, wait + 50);
+    return () => clearTimeout(id);
+  }, [q.opensAt, revealing, now, refresh]);
 
   async function answer(a: string) {
     if (locked || revealing || !a.trim()) return;
@@ -64,6 +75,17 @@ export function QuestionScreen({ view, act, now }: { view: GameView; act: Act; n
 
   const chosen = view.mine?.answer ?? picked;
   const isAnswer = (o: string) => revealing && q.answer?.toLowerCase() === o.toLowerCase();
+
+  if (gettingReady) return <GetReady view={view} now={t} />;
+  if (showStandings) return <Standings view={view} act={act} now={t} />;
+  if (!q.text) {
+    // The warning has just ended and the question is on its way.
+    return (
+      <div className="flex flex-1 items-center justify-center">
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-white/10 border-t-gold" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-1 flex-col gap-4 pb-6">
@@ -97,7 +119,7 @@ export function QuestionScreen({ view, act, now }: { view: GameView; act: Act; n
           className={`rise flex items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold ${fastest ? "border-gold/70 bg-gold/10 text-gold" : "border-white/15 bg-black/30"}`}
         >
           <span className="uppercase tracking-wider">{MODE_LABELS[q.mode]}</span>
-          <span className="font-normal text-muted">· {fastest ? "first correct answer wins" : "one answer per team"}</span>
+          <span className="font-normal text-muted">· {fastest ? "first correct answer wins" : "everyone gets one answer"}</span>
         </div>
       )}
 
@@ -148,29 +170,29 @@ export function QuestionScreen({ view, act, now }: { view: GameView; act: Act; n
         </div>
       )}
 
-      <StatusLine view={view} myTeamName={myTeam?.name ?? "Your team"} fastest={fastest} />
+      <StatusLine view={view} fastest={fastest} />
 
       {revealing && <Reveal view={view} act={act} now={t} />}
     </div>
   );
 }
 
-function StatusLine({ view, myTeamName, fastest }: { view: GameView; myTeamName: string; fastest: boolean }) {
+function StatusLine({ view, fastest }: { view: GameView; fastest: boolean }) {
   const q = view.question!;
   const revealing = view.phase === "reveal";
   const mine = view.mine;
   let text: string;
   if (revealing) {
-    if (!mine) text = fastest ? "You didn't answer." : `${myTeamName} didn't answer in time.`;
-    else if (mine.correct) text = fastest && q.winner?.playerId !== view.me.id ? "Correct, but someone was faster." : `Correct! +${q.points} to ${myTeamName}`;
+    if (!mine) text = fastest ? "You didn't answer." : "You didn't answer in time.";
+    else if (mine.correct) text = fastest && q.winner?.playerId !== view.me.id ? "Correct, but someone was faster." : `Correct! +${q.points}`;
     else text = "Wrong answer.";
   } else if (mine) {
     if (fastest) text = mine.correct ? "Correct!" : "Wrong. You're locked out of this question.";
-    else text = `${myTeamName} locked in${mine.by && mine.by !== view.me.name ? ` (by ${mine.by})` : ""}. Waiting for other teams…`;
+    else text = "Locked in. Waiting for everyone else…";
   } else {
-    text = fastest ? "First correct answer wins." : `One answer for ${myTeamName}. Agree on it together.`;
+    text = fastest ? "First correct answer wins." : "One answer each, so make it count.";
   }
-  const active = view.teams.filter((t) => t.players.length > 0);
+  const active = view.teams;
   return (
     <div className="space-y-2.5 text-center">
       <p className={`font-semibold ${revealing ? "rise" : "text-muted"} ${revealing && mine?.correct ? "!text-good" : ""}`}>{text}</p>
@@ -196,15 +218,16 @@ function StatusLine({ view, myTeamName, fastest }: { view: GameView; myTeamName:
 
 function Reveal({ view, act, now }: { view: GameView; act: Act; now: number }) {
   const q = view.question!;
-  const nextIn = view.revealEndsAt ? Math.max(0, Math.ceil((view.revealEndsAt - now) / 1000)) : 0;
+  const until = view.standingsAt ?? view.revealEndsAt;
+  const nextIn = until ? Math.max(0, Math.ceil((until - now) / 1000)) : 0;
   const last = q.index + 1 >= q.total;
-  const sorted = [...view.teams].filter((t) => t.players.length > 0).sort((a, b) => b.points - a.points);
-  const winnerTeam = q.winner ? view.teams[q.winner.team] : null;
+  const next = view.standingsAt ? "Leaderboard" : last ? "Results" : "Next question";
+  const sorted = [...view.teams].sort((a, b) => b.points - a.points);
   return (
     <div className="space-y-3">
-      {q.winner && winnerTeam && (
+      {q.winner && (
         <div className="rise panel p-3 text-center">
-          Fastest: <b>{q.winner.name}</b> <span className="text-muted">({winnerTeam.name})</span>
+          Fastest: <b>{q.winner.name}</b>
         </div>
       )}
       {q.funFact && (
@@ -225,13 +248,85 @@ function Reveal({ view, act, now }: { view: GameView; act: Act; now: number }) {
       </div>
       {view.me.isHost ? (
         <button className="btn btn-primary w-full" onClick={() => act("next").catch(() => {})}>
-          {last ? "Show results" : "Next question"} <span className="opacity-60">· {nextIn}</span>
+          {view.standingsAt ? "Show leaderboard" : last ? "Show results" : "Next question"} <span className="opacity-60">· {nextIn}</span>
         </button>
       ) : (
         <p className="text-center text-sm text-muted">
-          {last ? "Results" : "Next question"} in {nextIn}…
+          {next} in {nextIn}…
         </p>
       )}
+    </div>
+  );
+}
+
+/** Full-screen warning before a fastest finger question, so nobody is caught out. */
+function GetReady({ view, now }: { view: GameView; now: number }) {
+  const q = view.question!;
+  const secs = Math.max(1, Math.ceil((q.opensAt - now) / 1000));
+  return (
+    <div className="fixed inset-0 z-30 flex flex-col items-center justify-center gap-6 bg-[#04071a]/95 px-6 text-center">
+      <div className="pointer-events-none absolute inset-0" style={{ background: "radial-gradient(600px 420px at 50% 45%, rgba(245,197,66,0.22), transparent 70%)" }} />
+      <div className="eyebrow relative">
+        Question {q.index + 1} / {q.total} · {q.category}
+      </div>
+      <div className="relative">
+        <div className="text-sm font-bold uppercase tracking-[0.3em] text-gold">Get ready</div>
+        <h1 className="mt-2 text-5xl font-extrabold uppercase leading-none text-gold" style={{ textShadow: "0 0 30px rgba(245,197,66,0.55)" }}>
+          Fastest finger
+        </h1>
+      </div>
+      <p className="relative max-w-xs text-lg">The first correct answer wins the points. A wrong answer locks you out.</p>
+      <div key={secs} className="rise relative grid h-24 w-24 place-items-center rounded-full border-4 border-gold text-5xl font-extrabold text-gold">
+        {secs}
+      </div>
+      <div className="relative text-sm text-muted">Worth {q.points} points</div>
+    </div>
+  );
+}
+
+/** Full-screen scores every few questions, before the game carries on. */
+function Standings({ view, act, now }: { view: GameView; act: Act; now: number }) {
+  const q = view.question!;
+  const nextIn = view.revealEndsAt ? Math.max(0, Math.ceil((view.revealEndsAt - now) / 1000)) : 0;
+  const sorted = [...view.teams].sort((a, b) => b.points - a.points);
+  const top = sorted[0]?.points ?? 0;
+  const placeColors = ["#f5c542", "#c8d1e6", "#d8935a"];
+  return (
+    <div className="fixed inset-0 z-30 overflow-y-auto bg-[#04071a]/95">
+      <div className="mx-auto flex min-h-full max-w-md flex-col justify-center gap-5 px-4 py-8">
+        <div className="rise text-center">
+          <div className="eyebrow !text-gold">
+            After {q.index + 1} of {q.total} questions{view.round > 1 ? ` · Round ${view.round}` : ""}
+          </div>
+          <h1 className="mt-1 text-4xl font-extrabold">Leaderboard</h1>
+        </div>
+        <div className="panel space-y-1.5 p-4">
+          {sorted.map((t, i) => (
+            <div
+              key={t.team}
+              className="rise flex items-center gap-3 rounded-lg px-2 py-2.5"
+              style={{ animationDelay: `${i * 70}ms`, background: t.team === view.me.team ? "rgba(255,255,255,0.06)" : undefined }}
+            >
+              <span className="w-7 text-center text-lg font-extrabold" style={{ color: placeColors[i] ?? "var(--muted)" }}>
+                {i + 1}
+              </span>
+              <TeamBadge name={t.name} color={t.color} size={28} />
+              <span className="flex-1 truncate text-lg font-semibold">
+                {t.name}
+                {t.team === view.me.team ? <span className="text-muted"> (you)</span> : ""}
+              </span>
+              <span className={`text-2xl font-bold ${t.points === top && top > 0 ? "text-gold" : ""}`}>{t.points}</span>
+            </div>
+          ))}
+        </div>
+        {view.me.isHost ? (
+          <button className="btn btn-primary w-full" onClick={() => act("next").catch(() => {})}>
+            Next question <span className="opacity-60">· {nextIn}</span>
+          </button>
+        ) : (
+          <p className="text-center text-sm text-muted">Next question in {nextIn}…</p>
+        )}
+      </div>
     </div>
   );
 }

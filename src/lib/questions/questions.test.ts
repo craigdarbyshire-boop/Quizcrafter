@@ -4,7 +4,7 @@ import { isCorrectAnswer } from "./answers";
 import { generateQuestions, QuestionEngineError, tidyQuestion } from "./engine";
 import { MemoryHistoryStore } from "./history";
 import { fingerprint, isDuplicate } from "./similarity";
-import type { GenerateRequest, GeneratedQuestion } from "./types";
+import { normalizeAudience, type GenerateRequest, type GeneratedQuestion } from "./types";
 
 function mc(question: string, answer: string, extra: Partial<GeneratedQuestion> = {}): GeneratedQuestion {
   const options = [answer, "Wrong A", "Wrong B", "Wrong C"];
@@ -127,6 +127,15 @@ describe("generateQuestions", () => {
     const w2 = new FakeWriter(pool());
     await generateQuestions({ ...baseReq, audience: "adults" }, { writer: w2, history: new MemoryHistoryStore() });
     expect(w2.requests[0].audience).toBe("adults");
+    const w3 = new FakeWriter(pool());
+    await generateQuestions({ ...baseReq, audience: "children" }, { writer: w3, history: new MemoryHistoryStore() });
+    expect(w3.requests[0].audience).toBe("children");
+  });
+
+  it("keeps the kids (13 and under) option, and still loads old games", () => {
+    expect(normalizeAudience("children")).toBe("children");
+    expect(normalizeAudience("kids")).toBe("teens"); // the old name for the 14+ option
+    expect(normalizeAudience(undefined)).toBe("mixed");
   });
 
   it("replaces questions that fail the accuracy check", async () => {

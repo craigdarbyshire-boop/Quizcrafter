@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import type { GameView } from "@/lib/game/game";
 import { Confetti } from "./Confetti";
-import { TeamCards } from "./Lobby";
+import { PlayerCards } from "./Lobby";
 import { TeamBadge } from "./Logo";
 
 type Act = (path: string, body?: unknown) => Promise<unknown>;
@@ -32,12 +32,12 @@ export function RoundOver({ view, act }: { view: GameView; act: Act }) {
   const iWon = winners.some((w) => w.team === view.me.team) || champs?.some((c) => c.team === view.me.team);
   const headline =
     ended && champs
-      ? `${champs.map((c) => c.name).join(" & ")} ${champs.length > 1 ? "share the title" : "are champions"}`
+      ? `${champs.map((c) => c.name).join(" & ")} ${champs.length > 1 ? "share the title" : "is the champion"}`
       : winners.length === 0
         ? "No points scored"
         : winners.length > 1
           ? "It's a tie"
-          : `${winners[0].name} win${view.leaderboard ? ` round ${view.round}` : ""}`;
+          : `${winners[0].name} wins${view.leaderboard ? ` round ${view.round}` : ""}`;
   const hero = (ended && champs ? champs[0] : winners[0]) ?? null;
 
   return (
@@ -98,9 +98,9 @@ export function RoundOver({ view, act }: { view: GameView; act: Act }) {
 
       {!ended && (
         <details className="panel p-4">
-          <summary className="cursor-pointer font-semibold">Change teams, names or categories</summary>
+          <summary className="cursor-pointer font-semibold">Change categories</summary>
           <div className="mt-4 space-y-3">
-            <TeamCards view={view} act={act} editable />
+            <PlayerCards view={view} act={act} editable />
           </div>
         </details>
       )}
@@ -120,7 +120,7 @@ export function RoundOver({ view, act }: { view: GameView; act: Act }) {
               {busy ? "Starting…" : view.leaderboard ? `Play round ${view.round + 1}` : "Play again"}
             </button>
             <button className="btn btn-ghost" onClick={() => act("end").catch(() => {})}>
-              {view.leaderboard ? "Finish and crown the champions" : "Finish"}
+              {view.leaderboard ? "Finish and crown the champion" : "Finish"}
             </button>
           </div>
         ) : (

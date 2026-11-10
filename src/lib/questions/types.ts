@@ -3,11 +3,13 @@ import { z } from "zod";
 export const DIFFICULTIES = ["easy", "medium", "hard"] as const;
 export type Difficulty = (typeof DIFFICULTIES)[number];
 
-export const AUDIENCES = ["teens", "mixed", "adults"] as const;
+/** "children" is kids aged 13 and under. ("kids" was an older name for the teens option.) */
+export const AUDIENCES = ["children", "teens", "mixed", "adults"] as const;
 export type Audience = (typeof AUDIENCES)[number];
 
 /** Games saved before the audience options were renamed still load. */
 export function normalizeAudience(a: unknown): Audience {
+  if (a === "children") return "children";
   if (a === "kids" || a === "teens") return "teens";
   if (a === "adults") return "adults";
   return "mixed";

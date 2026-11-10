@@ -39,6 +39,8 @@ const TYPE_RULES: Record<QuestionType, string> = {
 };
 
 const PLAYERS: Record<Audience, string> = {
+  children:
+    "The players are children aged 13 and under (roughly 8 to 13). Pitch questions at primary and early secondary school level: animals, nature, space, famous places, popular films and books for young people, sport, simple science, history and maths. Keep the wording short and simple, and keep everything suitable for children, with nothing scary, violent or grown-up. Make them fun, not babyish.",
   teens:
     "The players are teenagers aged 14 and up. Pitch questions at secondary-school level and above, drawing on school subjects, sport, music, film, games, the internet and the wider world. Never write childish or babyish questions; treat them as sharp, capable players.",
   mixed:
@@ -52,10 +54,10 @@ function systemPrompt(audience: Audience): string {
 
 ${PLAYERS[audience]}
 
-Write questions that are fun, clear and have exactly one right answer that is not open to debate. Keep the tone like a good TV quiz show: smart and clean, nothing crude or graphic. Teenagers may be playing. Avoid questions whose answer changes over time (current records, "latest" anything, living people's ages).`;
+Write questions that are fun, clear and have exactly one right answer that is not open to debate. Keep the tone like a good TV quiz show: smart and clean, nothing crude or graphic. Young people may be playing. Avoid questions whose answer changes over time (current records, "latest" anything, living people's ages).`;
 }
 
-const AUDIENCE_NOUN: Record<Audience, string> = { teens: "teenagers aged 14 and up", mixed: "teenagers and adults", adults: "adults" };
+const AUDIENCE_NOUN: Record<Audience, string> = { children: "children aged 13 and under", teens: "teenagers aged 14 and up", mixed: "teenagers and adults", adults: "adults" };
 
 function writePrompt(req: WriteRequest): string {
   const range = POINTS_RANGE[req.difficulty];

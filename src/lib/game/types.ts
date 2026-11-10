@@ -19,9 +19,18 @@ export const MODE_LABELS: Record<AnswerMode, string> = {
 
 /** How long the answer is shown before the next question starts on its own. */
 export const REVEAL_SECONDS = 8;
+/** A full-screen "fastest finger" warning shows for this long before each fastest finger question. */
+export const GET_READY_SECONDS = 3;
+/** Every this many questions, the scores are shown full screen before the next question. */
+export const STANDINGS_EVERY = 5;
+export const STANDINGS_SECONDS = 5;
+
+/** Every player plays for themselves, so the most players is the number of player colours. */
+export const MAX_PLAYERS = 10;
 
 export const SettingsSchema = z.object({
-  teams: z.number().int().min(2).max(10),
+  // Games used to have teams. Now every player is their own team, so this is no longer used.
+  teams: z.number().int().optional(),
   questions: z.number().int().min(5).max(30),
   timeLimit: z.number().refine((t) => (TIME_LIMITS as readonly number[]).includes(t), "Pick a listed time limit"),
   difficulty: z.enum(DIFFICULTIES),
@@ -34,7 +43,6 @@ export const SettingsSchema = z.object({
 export type Settings = z.infer<typeof SettingsSchema>;
 
 export const DEFAULT_SETTINGS: Settings = {
-  teams: 2,
   questions: 10,
   timeLimit: 10,
   difficulty: "easy",
@@ -60,14 +68,11 @@ export const CATEGORY_IDEAS = [
   "Food",
 ];
 
-/** Team colours, by team index. Teams pick their own names; until then they're "Team 1", "Team 2"… */
+/**
+ * Player colours, by team index. Each player is their own team (the "team" number is just
+ * that player's slot), and the team's name is the player's name.
+ */
 export const TEAM_COLORS = ["#ff5a4f", "#3d8bff", "#2fd07f", "#f5b82e", "#a070ff", "#19c3d6", "#ff8a3d", "#ff4f9a", "#9fd843", "#c8d1e6"] as const;
-
-export function teamName(names: Record<number, string> | undefined, team: number): string {
-  return names?.[team] || `Team ${team + 1}`;
-}
-
-export const TEAM_NAME_MAX = 24;
 
 export type Phase = "lobby" | "generating" | "question" | "reveal" | "round_over" | "ended";
 
@@ -80,9 +85,9 @@ export interface Game {
   round: number;
   qIndex: number;
   phaseStartedAt: number; // ms since epoch
-  /** Category each team picked, by team index. */
+  /** Category each player picked, by team index. */
   teamCategories: Record<number, string>;
-  /** Names teams chose for themselves, by team index. */
+  /** Names teams chose for themselves, from when games had teams. No longer used. */
   teamNames: Record<number, string>;
   error: string | null;
 }

@@ -3,12 +3,12 @@
 import QRCode from "qrcode";
 import { useEffect, useState } from "react";
 import type { GameView } from "@/lib/game/game";
-import { CATEGORY_IDEAS, MODE_LABELS, TEAM_NAME_MAX } from "@/lib/game/types";
+import { CATEGORY_IDEAS, MAX_PLAYERS, MODE_LABELS } from "@/lib/game/types";
 import { TeamBadge } from "./Logo";
 
 type Act = (path: string, body?: unknown) => Promise<unknown>;
 
-const AUDIENCE_LABELS: Record<string, string> = { teens: "Teens (14+)", mixed: "Teens & adults", adults: "Adults", kids: "Teens (14+)", family: "Teens & adults" };
+const AUDIENCE_LABELS: Record<string, string> = { children: "Kids (13 & under)", teens: "Teens (14+)", mixed: "Teens & adults", adults: "Adults", kids: "Teens (14+)", family: "Teens & adults" };
 
 function JoinCode({ code }: { code: string }) {
   const [qr, setQr] = useState("");
@@ -41,7 +41,7 @@ function JoinCode({ code }: { code: string }) {
   );
 }
 
-/** Bottom sheet used for both renaming a team and picking its category. */
+/** Bottom sheet for picking a category. */
 function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
     <div className="fixed inset-0 z-30 flex items-end bg-black/60 p-4" onClick={onClose}>
@@ -50,26 +50,6 @@ function Sheet({ title, onClose, children }: { title: string; onClose: () => voi
         {children}
       </div>
     </div>
-  );
-}
-
-function NameSheet({ current, onSave, onClose }: { current: string; onSave: (n: string) => void; onClose: () => void }) {
-  const [name, setName] = useState(/^Team \d+$/.test(current) ? "" : current);
-  return (
-    <Sheet title="Name your team" onClose={onClose}>
-      <form
-        className="space-y-3"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (name.trim()) onSave(name.trim());
-        }}
-      >
-        <input autoFocus value={name} onChange={(e) => setName(e.target.value.slice(0, TEAM_NAME_MAX))} placeholder={current} className="field" />
-        <button className="btn btn-primary w-full" disabled={!name.trim()}>
-          Save name
-        </button>
-      </form>
-    </Sheet>
   );
 }
 
@@ -104,77 +84,44 @@ function CategorySheet({ current, onPick, onClose }: { current: string; onPick: 
   );
 }
 
-export function TeamCards({ view, act, editable }: { view: GameView; act: Act; editable: boolean }) {
-  const [sheet, setSheet] = useState<{ kind: "name" | "category"; team: number } | null>(null);
+/** One card per player. Everyone plays for themselves and picks their own category. */
+export function PlayerCards({ view, act, editable }: { view: GameView; act: Act; editable: boolean }) {
+  const [picking, setPicking] = useState<number | null>(null);
   const { me } = view;
+  const current = view.teams.find((t) => t.team === picking);
   return (
     <>
-      <div className="grid gap-3">
+      <div className="grid gap-2.5">
         {view.teams.map((t) => {
           const mine = me.team === t.team;
           const canEdit = editable && (mine || me.isHost);
           return (
             <div
               key={t.team}
-              className="panel overflow-hidden !p-0"
+              className="panel rise flex items-center gap-3 px-4 py-3"
               style={{ borderColor: mine ? t.color : undefined, boxShadow: mine ? `0 0 0 1px ${t.color}, 0 10px 30px ${t.color}22` : undefined }}
             >
-              <div className="flex items-center gap-3 border-b border-white/10 px-4 py-3">
-                <TeamBadge name={t.name} color={t.color} size={34} />
-                <div className="min-w-0 flex-1">
-                  <button className="flex max-w-full items-center gap-1.5 text-left text-lg font-bold" disabled={!canEdit} onClick={() => setSheet({ kind: "name", team: t.team })}>
-                    <span className="truncate">{t.name}</span>
-                    {canEdit && <span className="text-sm text-gold">✎</span>}
-                  </button>
-                  <button className="text-sm text-muted" disabled={!canEdit} onClick={() => setSheet({ kind: "category", team: t.team })}>
-                    {t.category}
-                    {canEdit && <span className="text-gold"> · change</span>}
-                  </button>
-                </div>
-                {editable && !mine && (
-                  <button className="btn btn-ghost !px-3 !py-1.5 text-sm" onClick={() => act("team", { team: t.team })}>
-                    Join
-                  </button>
-                )}
-                {mine && <span className="rounded-md bg-white/10 px-2 py-1 text-xs font-semibold uppercase tracking-wider">Your team</span>}
+              <TeamBadge name={t.name} color={t.color} size={34} />
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-lg font-bold">{t.name}</div>
+                <button className="text-left text-sm text-muted" disabled={!canEdit} onClick={() => setPicking(t.team)}>
+                  {t.category}
+                  {canEdit && <span className="text-gold"> · change</span>}
+                </button>
               </div>
-              <div className="flex min-h-12 flex-wrap gap-2 px-4 py-3">
-                {t.players.length === 0 && <span className="text-sm text-muted">No players yet</span>}
-                {t.players.map((p) => (
-                  <button
-                    key={p.id}
-                    disabled={!editable || !me.isHost}
-                    title={me.isHost ? "Tap to move to the next team" : undefined}
-                    onClick={() => act("team", { playerId: p.id, team: (t.team + 1) % view.teams.length })}
-                    className="rise rounded-lg border border-white/10 bg-white/5 px-3 py-1 font-medium"
-                  >
-                    {p.name}
-                    {p.id === me.id ? " (you)" : ""}
-                  </button>
-                ))}
-              </div>
+              {mine && <span className="rounded-md bg-white/10 px-2 py-1 text-xs font-semibold uppercase tracking-wider">You</span>}
             </div>
           );
         })}
       </div>
-      {editable && <p className="text-center text-sm text-muted">Tap ✎ to rename your team. {me.isHost ? "Tap a player to move them." : ""}</p>}
-      {sheet?.kind === "name" && (
-        <NameSheet
-          current={view.teams[sheet.team].name}
-          onClose={() => setSheet(null)}
-          onSave={(name) => {
-            act("team-name", { team: sheet.team, name }).catch(() => {});
-            setSheet(null);
-          }}
-        />
-      )}
-      {sheet?.kind === "category" && (
+      {editable && <p className="text-center text-sm text-muted">Everyone plays for themselves. Tap your category to change it.</p>}
+      {current && (
         <CategorySheet
-          current={view.teams[sheet.team].category}
-          onClose={() => setSheet(null)}
+          current={current.category}
+          onClose={() => setPicking(null)}
           onPick={(c) => {
-            act("category", { team: sheet.team, category: c }).catch(() => {});
-            setSheet(null);
+            act("category", { team: current.team, category: c }).catch(() => {});
+            setPicking(null);
           }}
         />
       )}
@@ -185,7 +132,7 @@ export function TeamCards({ view, act, editable }: { view: GameView; act: Act; e
 export function Lobby({ view, act }: { view: GameView; act: Act }) {
   const [starting, setStarting] = useState(false);
   const s = view.settings;
-  const playerCount = view.teams.reduce((n, t) => n + t.players.length, 0);
+  const playerCount = view.teams.length;
   return (
     <div className="flex flex-col gap-5 pb-28">
       <JoinCode code={view.code} />
@@ -206,7 +153,10 @@ export function Lobby({ view, act }: { view: GameView; act: Act }) {
           ))}
       </div>
       {view.error && <p className="shake rounded-xl border border-bad/50 bg-bad/15 px-4 py-3 text-center">{view.error}</p>}
-      <TeamCards view={view} act={act} editable />
+      <div className="eyebrow -mb-2">
+        Players · {playerCount} of {MAX_PLAYERS}
+      </div>
+      <PlayerCards view={view} act={act} editable />
       <div className="fixed inset-x-0 bottom-0 z-20 mx-auto max-w-md bg-gradient-to-t from-[#04071a] via-[#04071a]/90 to-transparent px-4 pb-6 pt-10">
         {view.me.isHost ? (
           <button

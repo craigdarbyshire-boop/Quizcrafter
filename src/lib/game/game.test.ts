@@ -10,14 +10,12 @@ import {
   planRound,
   roundModes,
   setCategory,
-  setTeamName,
-  setTeam,
   startRound,
   submitAnswer,
   type GameDeps,
 } from "./game";
 import { MemoryGameStore } from "./store";
-import { DEFAULT_SETTINGS, REVEAL_SECONDS, type Settings } from "./types";
+import { DEFAULT_SETTINGS, GET_READY_SECONDS, REVEAL_SECONDS, STANDINGS_SECONDS, type Settings } from "./types";
 
 function setup(settings: Partial<Settings> = {}) {
   let clock = 1_000_000;
@@ -47,19 +45,30 @@ async function currentAnswer(s: Awaited<ReturnType<typeof lobby>>) {
 }
 
 describe("joining", () => {
-  it("balances teams and lets the host move players", async () => {
+  it("makes every player their own team, named after them", async () => {
     const s = await lobby();
-    let view = await getView(s.deps, s.code, s.host.token);
-    expect(view.teams.map((t) => t.players.length)).toEqual([1, 1]);
-    await setTeam(s.deps, s.code, s.host.token, { playerId: s.kid.playerId, team: 0 });
-    view = await getView(s.deps, s.code, s.host.token);
-    expect(view.teams[0].players.map((p) => p.name)).toEqual(["Craig", "Sam"]);
+    await joinGame(s.deps, s.code, { name: "Alex" });
+    const view = await getView(s.deps, s.code, s.host.token);
+    expect(view.teams.map((t) => [t.team, t.name, t.players.length])).toEqual([
+      [0, "Craig", 1],
+      [1, "Sam", 1],
+      [2, "Alex", 1],
+    ]);
   });
 
-  it("stops non-hosts moving other players or starting", async () => {
+  it("refuses a name someone already has, and an 11th player", async () => {
     const s = await lobby();
-    await expect(setTeam(s.deps, s.code, s.kid.token, { playerId: s.host.playerId, team: 1 })).rejects.toThrow(/host/);
+    await expect(joinGame(s.deps, s.code, { name: "sam" })).rejects.toThrow(/already has that name/);
+    for (let i = 3; i <= 10; i++) await joinGame(s.deps, s.code, { name: `P${i}` });
+    await expect(joinGame(s.deps, s.code, { name: "One too many" })).rejects.toThrow(/full/);
+  });
+
+  it("lets players pick only their own category, and stops non-hosts starting", async () => {
+    const s = await lobby();
+    await setCategory(s.deps, s.code, s.kid.token, { team: 1, category: "Space" });
+    await expect(setCategory(s.deps, s.code, s.kid.token, { team: 0, category: "Space" })).rejects.toThrow(/own category/);
     await expect(startRound(s.deps, s.code, s.kid.token)).rejects.toThrow(/host/);
+    expect((await getView(s.deps, s.code, s.kid.token)).teams[1].category).toBe("Space");
   });
 
   it("rejects unknown codes", async () => {
@@ -68,22 +77,9 @@ describe("joining", () => {
   });
 });
 
-describe("team names", () => {
-  it("defaults to Team 1, Team 2 and lets each team name itself", async () => {
-    const s = await lobby();
-    let view = await getView(s.deps, s.code, s.kid.token);
-    expect(view.teams.map((t) => t.name)).toEqual(["Team 1", "Team 2"]);
-    await setTeamName(s.deps, s.code, s.kid.token, { team: 1, name: "  The   Brainiacs " });
-    view = await getView(s.deps, s.code, s.kid.token);
-    expect(view.teams[1].name).toBe("The Brainiacs");
-    await expect(setTeamName(s.deps, s.code, s.kid.token, { team: 0, name: "Nope" })).rejects.toThrow(/own team/);
-    await expect(setTeamName(s.deps, s.code, s.host.token, { team: 0, name: "the brainiacs" })).rejects.toThrow(/already/);
-  });
-});
-
 describe("planning a round", () => {
-  it("splits questions across team categories and takes turns", () => {
-    const plan = planRound({ ...DEFAULT_SETTINGS, teams: 3, questions: 7 }, { 0: "Animals", 2: "Space" });
+  it("splits questions across the players' categories and takes turns", () => {
+    const plan = planRound({ questions: 7 }, { 0: "Animals", 2: "Space" }, [0, 1, 2]);
     expect(plan.categories).toEqual([
       { category: "Animals", count: 3 },
       { category: "General knowledge", count: 2 },
@@ -94,7 +90,7 @@ describe("planning a round", () => {
 });
 
 describe("normal answers", () => {
-  it("takes one answer per team and hides the answer until the reveal", async () => {
+  it("takes one answer per player and hides the answer until the reveal", async () => {
     const s = await lobby();
     await setCategory(s.deps, s.code, s.kid.token, { team: 1, category: "Animals" });
     await startRound(s.deps, s.code, s.host.token);
@@ -106,7 +102,7 @@ describe("normal answers", () => {
     await submitAnswer(s.deps, s.code, s.host.token, { answer: q.answer });
     await expect(submitAnswer(s.deps, s.code, s.host.token, { answer: "x" })).rejects.toThrow(/already/);
     view = await getView(s.deps, s.code, s.kid.token);
-    expect(view.phase).toBe("question"); // Sam's team hasn't answered yet
+    expect(view.phase).toBe("question"); // Sam hasn't answered yet
 
     await submitAnswer(s.deps, s.code, s.kid.token, { answer: "wrong" });
     view = await getView(s.deps, s.code, s.kid.token);
@@ -131,9 +127,10 @@ describe("normal answers", () => {
 describe("fastest first", () => {
   it("gives the points to the first right answer and locks out wrong answers", async () => {
     const s = await lobby({ mode: "fastest" });
-    const third = await joinGame(s.deps, s.code, { name: "Alex" }); // joins team 0
+    const third = await joinGame(s.deps, s.code, { name: "Alex" });
     await startRound(s.deps, s.code, s.host.token);
     const q = await currentAnswer(s);
+    s.tick(GET_READY_SECONDS);
 
     expect(await submitAnswer(s.deps, s.code, s.kid.token, { answer: "nope" })).toEqual({ correct: false });
     await expect(submitAnswer(s.deps, s.code, s.kid.token, { answer: q.answer })).rejects.toThrow(/already/);
@@ -143,8 +140,94 @@ describe("fastest first", () => {
     const view = await getView(s.deps, s.code, s.host.token);
     expect(view.phase).toBe("reveal");
     expect(view.question?.winner?.name).toBe("Alex");
-    expect(view.teams[0].points).toBe(q.points);
-    expect(view.teams[1].points).toBe(0);
+    expect(view.teams.map((t) => t.points)).toEqual([0, 0, q.points]);
+  });
+
+  it("shows a warning first, hiding the question and refusing answers until it's over", async () => {
+    const s = await lobby({ mode: "fastest", timeLimit: 10 });
+    await startRound(s.deps, s.code, s.host.token);
+    const q = await currentAnswer(s);
+    let view = await getView(s.deps, s.code, s.kid.token);
+    expect(view.question?.mode).toBe("fastest");
+    expect(view.question?.text).toBe("");
+    expect(view.question?.options).toEqual([]);
+    expect(view.question!.opensAt - view.serverNow).toBe(GET_READY_SECONDS * 1000);
+    await expect(submitAnswer(s.deps, s.code, s.kid.token, { answer: q.answer })).rejects.toThrow(/Wait/);
+
+    s.tick(GET_READY_SECONDS);
+    view = await getView(s.deps, s.code, s.kid.token);
+    expect(view.question?.text).toBe(q.question);
+    // The full answer time still runs after the warning.
+    s.tick(9);
+    expect((await getView(s.deps, s.code, s.kid.token)).phase).toBe("question");
+    s.tick(2);
+    expect((await getView(s.deps, s.code, s.kid.token)).phase).toBe("reveal");
+  });
+
+  it("has no warning in normal mode", async () => {
+    const s = await lobby({ mode: "silent" });
+    await startRound(s.deps, s.code, s.host.token);
+    const view = await getView(s.deps, s.code, s.kid.token);
+    expect(view.question?.opensAt).toBe(view.serverNow);
+    expect(view.question?.text).not.toBe("");
+  });
+});
+
+describe("leaderboard every 5 questions", () => {
+  async function toReveal(s: Awaited<ReturnType<typeof lobby>>) {
+    s.tick(60);
+    const view = await getView(s.deps, s.code, s.host.token);
+    expect(view.phase).toBe("reveal");
+    return view;
+  }
+
+  it("adds 5 seconds of scores after questions 5 and 10, but not after the last", async () => {
+    const s = await lobby({ questions: 10, timeLimit: 10 });
+    await startRound(s.deps, s.code, s.host.token);
+    for (let i = 0; i < 4; i++) {
+      const view = await toReveal(s);
+      expect(view.standingsAt).toBeNull();
+      expect(view.revealEndsAt! - view.serverNow).toBe(REVEAL_SECONDS * 1000);
+      await nextQuestion(s.deps, s.code, s.host.token);
+    }
+    // Question 5: the answer, then the scores.
+    let view = await toReveal(s);
+    expect(view.question?.index).toBe(4);
+    expect(view.standingsAt! - view.serverNow).toBe(REVEAL_SECONDS * 1000);
+    expect(view.revealEndsAt! - view.serverNow).toBe((REVEAL_SECONDS + STANDINGS_SECONDS) * 1000);
+    s.tick(REVEAL_SECONDS + 1);
+    expect((await getView(s.deps, s.code, s.host.token)).phase).toBe("reveal"); // scores on screen
+    s.tick(STANDINGS_SECONDS);
+    view = await getView(s.deps, s.code, s.host.token);
+    expect(view.phase).toBe("question");
+    expect(view.question?.index).toBe(5);
+
+    for (let i = 5; i < 9; i++) {
+      await toReveal(s);
+      await nextQuestion(s.deps, s.code, s.host.token);
+    }
+    view = await toReveal(s);
+    expect(view.question?.index).toBe(9);
+    expect(view.standingsAt).toBeNull(); // the results screen comes next instead
+  });
+
+  it("host Next skips to the scores first, then on to the next question", async () => {
+    const s = await lobby({ questions: 10 });
+    await startRound(s.deps, s.code, s.host.token);
+    for (let i = 0; i < 4; i++) {
+      await toReveal(s);
+      await nextQuestion(s.deps, s.code, s.host.token);
+    }
+    await toReveal(s);
+    await nextQuestion(s.deps, s.code, s.host.token);
+    let view = await getView(s.deps, s.code, s.host.token);
+    expect(view.phase).toBe("reveal");
+    expect(view.standingsAt).toBe(view.serverNow);
+    expect(view.revealEndsAt! - view.serverNow).toBe(STANDINGS_SECONDS * 1000);
+    await nextQuestion(s.deps, s.code, s.host.token);
+    view = await getView(s.deps, s.code, s.host.token);
+    expect(view.phase).toBe("question");
+    expect(view.question?.index).toBe(5);
   });
 });
 
@@ -177,6 +260,7 @@ describe("mixed answer modes", () => {
     const game = (await s.store.getGameByCode(s.code))!;
     const modes = roundModes(game);
     for (let i = 0; i < 10; i++) {
+      if (modes[i] === "fastest") s.tick(GET_READY_SECONDS);
       const view = await getView(s.deps, s.code, s.host.token);
       expect(view.question?.mode).toBe(modes[i]);
       const q = await currentAnswer(s);
@@ -192,6 +276,7 @@ describe("mixed answer modes", () => {
         await submitAnswer(s.deps, s.code, s.kid.token, { answer: "wrong" });
       }
       await nextQuestion(s.deps, s.code, s.host.token);
+      if (i === 4) await nextQuestion(s.deps, s.code, s.host.token); // past the scores
     }
     expect((await getView(s.deps, s.code, s.host.token)).phase).toBe("round_over");
   });
